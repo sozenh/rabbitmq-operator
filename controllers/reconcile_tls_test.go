@@ -3,7 +3,7 @@ package controllers_test
 import (
 	"context"
 	"fmt"
-	"github.com/rabbitmq/cluster-operator/v2/internal/status"
+
 	"k8s.io/utils/ptr"
 	runtimeClient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -252,7 +252,7 @@ func verifyReconcileSuccessFalse(name, namespace string) bool {
 		}, rabbit)).To(Succeed())
 
 		for i := range rabbit.Status.Conditions {
-			if rabbit.Status.Conditions[i].Type == status.ReconcileSuccess {
+			if rabbit.Status.Conditions[i].Type == rabbitmqv1beta1.ReconcileSuccess {
 				return fmt.Sprintf("ReconcileSuccess status: %s", rabbit.Status.Conditions[i].Status)
 			}
 		}

@@ -4,15 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
 
 func (r *RabbitmqClusterReconciler) exec(namespace, podName, containerName string, command ...string) (string, string, error) {
@@ -90,4 +92,25 @@ func (r *RabbitmqClusterReconciler) configMap(ctx context.Context, rmq *rabbitmq
 		return nil, err
 	}
 	return configMap, nil
+}
+
+func statefulSetBeingUpdated(sts *appsv1.StatefulSet) bool {
+	return sts.Status.CurrentRevision != sts.Status.UpdateRevision
+}
+
+func allReplicasReadyAndUpdated(sts *appsv1.StatefulSet) bool {
+	return sts.Status.ReadyReplicas == *sts.Spec.Replicas && !statefulSetBeingUpdated(sts)
+}
+
+func statefulSetNeedsQueueRebalance(sts *appsv1.StatefulSet, rmq *rabbitmqv1beta1.RabbitmqCluster) bool {
+	return statefulSetBeingUpdated(sts) && !rmq.Spec.SkipPostDeploySteps && *rmq.Spec.Replicas > 1
+}
+
+func persistenceStorageCapacity(name string, templates []corev1.PersistentVolumeClaim) k8sresource.Quantity {
+	for _, t := range templates {
+		if t.Name == name {
+			return t.Spec.Resources.Requests[corev1.ResourceStorage]
+		}
+	}
+	return k8sresource.MustParse("0")
 }

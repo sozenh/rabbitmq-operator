@@ -23,8 +23,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
-	"github.com/rabbitmq/cluster-operator/v2/internal/status"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +30,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	runtimeClient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
 
 const (
@@ -761,7 +761,7 @@ var _ = Describe("RabbitmqClusterController", func() {
 					}, someRabbit)).To(Succeed())
 
 					for i := range someRabbit.Status.Conditions {
-						if someRabbit.Status.Conditions[i].Type == status.ReconcileSuccess {
+						if someRabbit.Status.Conditions[i].Type == rabbitmqv1beta1.ReconcileSuccess {
 							return fmt.Sprintf("ReconcileSuccess status: %s", someRabbit.Status.Conditions[i].Status)
 						}
 					}
@@ -1212,7 +1212,7 @@ var _ = Describe("RabbitmqClusterController", func() {
 					Expect(client.Get(ctx,
 						types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, rmq)).To(Succeed())
 					for i := range rmq.Status.Conditions {
-						if rmq.Status.Conditions[i].Type == status.NoWarnings {
+						if rmq.Status.Conditions[i].Type == rabbitmqv1beta1.NoWarnings {
 							return fmt.Sprintf("NoWarnings status: %s with reason: %s",
 								rmq.Status.Conditions[i].Status,
 								rmq.Status.Conditions[i].Reason)
@@ -1247,7 +1247,7 @@ var _ = Describe("RabbitmqClusterController", func() {
 					Expect(client.Get(ctx,
 						types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, rmq)).To(Succeed())
 					for i := range rmq.Status.Conditions {
-						if rmq.Status.Conditions[i].Type == status.NoWarnings {
+						if rmq.Status.Conditions[i].Type == rabbitmqv1beta1.NoWarnings {
 							return fmt.Sprintf("NoWarnings status: %s", rmq.Status.Conditions[i].Status)
 						}
 					}

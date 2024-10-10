@@ -14,14 +14,12 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-)
 
-const (
-	roleName = "peer-discovery"
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
+	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
 )
 
 type RoleBuilder struct {
@@ -35,8 +33,10 @@ func (builder *RabbitmqResourceBuilder) Role() *RoleBuilder {
 func (builder *RoleBuilder) Build() (client.Object, error) {
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: builder.Instance.Namespace,
-			Name:      builder.Instance.ChildResourceName(roleName),
+			Namespace:   builder.Instance.Namespace,
+			Name:        builder.Instance.ChildResourceName(constant.ResourceRoleSuffix),
+			Labels:      metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels),
+			Annotations: metadata.ReconcileAndFilterAnnotations(nil, builder.Instance.Annotations),
 		},
 	}, nil
 }
@@ -49,6 +49,7 @@ func (builder *RoleBuilder) Update(object client.Object) error {
 	role := object.(*rbacv1.Role)
 	role.Labels = metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels)
 	role.Annotations = metadata.ReconcileAndFilterAnnotations(role.GetAnnotations(), builder.Instance.Annotations)
+
 	role.Rules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{""},

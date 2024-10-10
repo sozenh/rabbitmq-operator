@@ -22,13 +22,15 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
-	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
-	"github.com/rabbitmq/cluster-operator/v2/internal/status"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
+	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
+	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
+	"github.com/rabbitmq/cluster-operator/v2/internal/status"
 
 	"k8s.io/apimachinery/pkg/types"
 
@@ -40,11 +42,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
 
 var (
@@ -114,7 +117,7 @@ func (r *RabbitmqClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		r.Recorder.Event(rabbitmqCluster, corev1.EventTypeWarning,
 			"PausedReconciliation", fmt.Sprintf("label '%s' is set to true", pauseReconciliationLabel))
 
-		rabbitmqCluster.Status.SetCondition(status.NoWarnings, corev1.ConditionFalse, "reconciliation paused")
+		status.SetCondition(&rabbitmqCluster.Status, rabbitmqv1beta1.NoWarnings, corev1.ConditionFalse, "reconciliation paused")
 		if writerErr := r.Status().Update(ctx, rabbitmqCluster); writerErr != nil {
 			logger.Error(writerErr, "Error trying to Update NoWarnings condition state")
 		}
@@ -126,7 +129,7 @@ func (r *RabbitmqClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// Ensure the resource have a deletion marker
-	if err := r.addFinalizerIfNeeded(ctx, rabbitmqCluster); err != nil {
+	if err := r.addFinalizer(ctx, rabbitmqCluster); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -306,9 +309,9 @@ func (r *RabbitmqClusterReconciler) updateStatusConditions(ctx context.Context, 
 		return 0, err
 	}
 
-	oldConditions := make([]status.RabbitmqClusterCondition, len(rmq.Status.Conditions))
+	oldConditions := make([]rabbitmqv1beta1.RabbitmqClusterCondition, len(rmq.Status.Conditions))
 	copy(oldConditions, rmq.Status.Conditions)
-	rmq.Status.SetConditions(childResources)
+	status.SetConditions(childResources, &rmq.Status)
 
 	if !reflect.DeepEqual(rmq.Status.Conditions, oldConditions) {
 		if err = r.Status().Update(ctx, rmq); err != nil {
@@ -338,7 +341,7 @@ func (r *RabbitmqClusterReconciler) getChildResources(ctx context.Context, rmq *
 	}
 
 	if err := r.Client.Get(ctx,
-		types.NamespacedName{Name: rmq.ChildResourceName(resource.ServiceSuffix), Namespace: rmq.Namespace},
+		types.NamespacedName{Name: rmq.ChildResourceName(constant.ResourceClientServiceSuffix), Namespace: rmq.Namespace},
 		endPoints); err != nil && !k8serrors.IsNotFound(err) {
 		return nil, err
 	} else if k8serrors.IsNotFound(err) {
@@ -349,7 +352,7 @@ func (r *RabbitmqClusterReconciler) getChildResources(ctx context.Context, rmq *
 }
 
 func (r *RabbitmqClusterReconciler) setReconcileSuccess(ctx context.Context, rabbitmqCluster *rabbitmqv1beta1.RabbitmqCluster, condition corev1.ConditionStatus, reason, msg string) {
-	rabbitmqCluster.Status.SetCondition(status.ReconcileSuccess, condition, reason, msg)
+	status.SetCondition(&rabbitmqCluster.Status, rabbitmqv1beta1.ReconcileSuccess, condition, reason, msg)
 	if writerErr := r.Status().Update(ctx, rabbitmqCluster); writerErr != nil {
 		ctrl.LoggerFrom(ctx).Error(writerErr, "Failed to update Custom Resource status",
 			"namespace", rabbitmqCluster.Namespace,

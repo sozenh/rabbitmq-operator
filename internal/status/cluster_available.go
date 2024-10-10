@@ -15,20 +15,27 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	mqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
 
-type ClusterAvailableConditionManager struct {
-	condition RabbitmqClusterCondition
-	endpoints *corev1.Endpoints
-}
+func ClusterAvailableCondition(
+	resources []runtime.Object,
+	oldCondition *mqv1beta1.RabbitmqClusterCondition) mqv1beta1.RabbitmqClusterCondition {
 
-func ClusterAvailableCondition(resources []runtime.Object,
-	oldCondition *RabbitmqClusterCondition) RabbitmqClusterCondition {
-
-	condition := newRabbitmqClusterCondition(ClusterAvailable)
+	condition := newRabbitmqClusterCondition(mqv1beta1.ClusterAvailable)
 	if oldCondition != nil {
 		condition.LastTransitionTime = oldCondition.LastTransitionTime
 	}
+	defer func() {
+		if oldCondition != nil {
+			if oldCondition.Status != condition.Status ||
+				oldCondition.Reason != condition.Reason ||
+				oldCondition.Message != condition.Message {
+				condition.LastTransitionTime = metav1.Time{Time: time.Now()}
+			}
+		}
+	}()
 
 	for _, res := range resources {
 		switch resource := res.(type) {
@@ -37,27 +44,20 @@ func ClusterAvailableCondition(resources []runtime.Object,
 				condition.Status = corev1.ConditionUnknown
 				condition.Reason = "CouldNotRetrieveEndpoints"
 				condition.Message = "Could not verify available service endpoints"
-				goto assignLastTransitionTime
+				continue
 			}
 
 			for _, subset := range resource.Subsets {
 				if len(subset.Addresses) > 0 {
 					condition.Status = corev1.ConditionTrue
 					condition.Reason = "AtLeastOneEndpointAvailable"
-					goto assignLastTransitionTime
+					continue
 				}
 			}
 
 			condition.Status = corev1.ConditionFalse
 			condition.Reason = "NoEndpointsAvailable"
 			condition.Message = "The service has no endpoints available"
-		}
-	}
-
-assignLastTransitionTime:
-	if oldCondition == nil || oldCondition.Status != condition.Status {
-		condition.LastTransitionTime = metav1.Time{
-			Time: time.Now(),
 		}
 	}
 

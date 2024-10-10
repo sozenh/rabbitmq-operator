@@ -6,20 +6,20 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	. "github.com/rabbitmq/cluster-operator/v2/internal/status"
+	mqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
 
 var _ = Describe("Status", func() {
 
 	Context("Condition method", func() {
 		var (
-			someCondition     RabbitmqClusterCondition
+			someCondition     mqv1beta1.RabbitmqClusterCondition
 			someConditionTime metav1.Time
 		)
 
 		BeforeEach(func() {
 			someConditionTime = metav1.Unix(1, 1)
-			someCondition = RabbitmqClusterCondition{
+			someCondition = mqv1beta1.RabbitmqClusterCondition{
 				Type:               "a-type",
 				Status:             "some-status",
 				LastTransitionTime: *someConditionTime.DeepCopy(),

@@ -17,13 +17,26 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	mqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
 
-func NoWarningsCondition(resources []runtime.Object, oldCondition *RabbitmqClusterCondition) RabbitmqClusterCondition {
-	condition := newRabbitmqClusterCondition(NoWarnings)
+func NoWarningsCondition(
+	resources []runtime.Object,
+	oldCondition *mqv1beta1.RabbitmqClusterCondition) mqv1beta1.RabbitmqClusterCondition {
+	condition := newRabbitmqClusterCondition(mqv1beta1.NoWarnings)
 	if oldCondition != nil {
 		condition.LastTransitionTime = oldCondition.LastTransitionTime
 	}
+	defer func() {
+		if oldCondition != nil {
+			if oldCondition.Status != condition.Status ||
+				oldCondition.Reason != condition.Reason ||
+				oldCondition.Message != condition.Message {
+				condition.LastTransitionTime = metav1.Time{Time: time.Now()}
+			}
+		}
+	}()
 
 	for _, res := range resources {
 		switch resource := res.(type) {
@@ -32,25 +45,18 @@ func NoWarningsCondition(resources []runtime.Object, oldCondition *RabbitmqClust
 				condition.Status = corev1.ConditionUnknown
 				condition.Reason = "MissingStatefulSet"
 				condition.Message = "Could not find StatefulSet"
-				goto assignLastTransitionTime
+				continue
 			}
 
 			if !equality.Semantic.DeepEqual(resource.Spec.Template.Spec.Containers[0].Resources.Limits["memory"], resource.Spec.Template.Spec.Containers[0].Resources.Requests["memory"]) {
 				condition.Status = corev1.ConditionFalse
 				condition.Reason = "MemoryRequestAndLimitDifferent"
 				condition.Message = "RabbitMQ container memory resource request and limit must be equal"
-				goto assignLastTransitionTime
+				continue
 			}
 
 			condition.Status = corev1.ConditionTrue
 			condition.Reason = "NoWarnings"
-		}
-	}
-
-assignLastTransitionTime:
-	if oldCondition == nil || oldCondition.Status != condition.Status {
-		condition.LastTransitionTime = metav1.Time{
-			Time: time.Now(),
 		}
 	}
 

@@ -10,14 +10,13 @@ package v1beta1
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
+	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
-	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -29,6 +28,7 @@ const DisableDefaultTopologySpreadAnnotation = "rabbitmq.com/disable-default-top
 // +kubebuilder:printcolumn:name="ReconcileSuccess",type="string",JSONPath=".status.conditions[?(@.type == 'ReconcileSuccess')].status"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:resource:shortName={"rmq"},categories=all;rabbitmq
+
 // RabbitmqCluster is the Schema for the RabbitmqCluster API. Each instance of this object
 // corresponds to a single RabbitMQ cluster.
 type RabbitmqCluster struct {
@@ -43,39 +43,59 @@ type RabbitmqCluster struct {
 	Status RabbitmqClusterStatus `json:"status,omitempty"`
 }
 
-// Spec is the desired state of the RabbitmqCluster Custom Resource.
+// RabbitmqClusterSpec is the desired state of the RabbitmqCluster Custom Resource.
 type RabbitmqClusterSpec struct {
-	// Replicas is the number of nodes in the RabbitMQ cluster. Each node is deployed as a Replica in a StatefulSet. Only 1, 3, 5 replicas clusters are tested.
+	// Replicas is the number of nodes in the RabbitMQ cluster.
+	// Each node is deployed as a Replica in a StatefulSet. Only 1, 3, 5 replicas clusters are tested.
 	// This value should be an odd number to ensure the resultant cluster can establish exactly one quorum of nodes
 	// in the event of a fragmenting network partition.
 	// +optional
 	// +kubebuilder:validation:Minimum:=0
 	// +kubebuilder:default:=1
 	Replicas *int32 `json:"replicas,omitempty"`
+
+	// TLS-related configuration for the RabbitMQ cluster.
+	TLS TLSSpec `json:"tls,omitempty"`
+	// Configuration options for RabbitMQ Pods created in the cluster.
+	Rabbitmq RabbitmqClusterConfigurationSpec `json:"rabbitmq,omitempty"`
+
 	// Image is the name of the RabbitMQ docker image to use for RabbitMQ nodes in the RabbitmqCluster.
 	// Must be provided together with ImagePullSecrets in order to use an image in a private registry.
 	Image string `json:"image,omitempty"`
 	// List of Secret resource containing access credentials to the registry for the RabbitMQ image. Required if the docker registry is private.
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+
+	// Affinity scheduling rules to be applied on created Pods.
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+	// Tolerations is the list of Toleration resources attached to each Pod in the RabbitmqCluster.
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	// The desired compute resource requirements of Pods in the cluster.
+	// +kubebuilder:default:={limits: {cpu: "2000m", memory: "2Gi"}, requests: {cpu: "1000m", memory: "2Gi"}}
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
 	// The desired state of the Kubernetes Service to create for the cluster.
 	// +kubebuilder:default:={type: "ClusterIP"}
 	Service RabbitmqClusterServiceSpec `json:"service,omitempty"`
 	// The desired persistent storage configuration for each Pod in the cluster.
 	// +kubebuilder:default:={storage: "10Gi"}
 	Persistence RabbitmqClusterPersistenceSpec `json:"persistence,omitempty"`
-	// The desired compute resource requirements of Pods in the cluster.
-	// +kubebuilder:default:={limits: {cpu: "2000m", memory: "2Gi"}, requests: {cpu: "1000m", memory: "2Gi"}}
-	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
-	// Affinity scheduling rules to be applied on created Pods.
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
-	// Tolerations is the list of Toleration resources attached to each Pod in the RabbitmqCluster.
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
-	// Configuration options for RabbitMQ Pods created in the cluster.
-	Rabbitmq RabbitmqClusterConfigurationSpec `json:"rabbitmq,omitempty"`
-	// TLS-related configuration for the RabbitMQ cluster.
-	TLS TLSSpec `json:"tls,omitempty"`
+
+	// Secret backend configuration for the RabbitmqCluster.
+	// Enables to fetch default user credentials and certificates from K8s external secret stores.
+	SecretBackend SecretBackend `json:"secretBackend,omitempty"`
 	// Provides the ability to override the generated manifest of several child resources.
 	Override RabbitmqClusterOverrideSpec `json:"override,omitempty"`
+
+	// DelayStartSeconds is the time the init container (`setup-container`) will sleep before terminating.
+	// This effectively delays the time between starting the Pod and starting the `rabbitmq` container.
+	// RabbitMQ relies on up-to-date DNS entries early during peer discovery.
+	// The purpose of this artificial delay is to ensure that DNS entries are up-to-date when booting RabbitMQ.
+	// For more information, see https://github.com/kubernetes/kubernetes/issues/92559
+	// If your Kubernetes DNS backend is configured with a low DNS cache value or publishes not ready addresses
+	// promptly, you can decrase this value or set it to 0.
+	// +kubebuilder:validation:Minimum:=0
+	// +kubebuilder:default:=30
+	DelayStartSeconds *int32 `json:"delayStartSeconds,omitempty"`
 	// If unset, or set to false, the cluster will run `rabbitmq-queues rebalance all` whenever the cluster is updated.
 	// Set to true to prevent the operator rebalancing queue leaders after a cluster update.
 	// Has no effect if the cluster only consists of one node.
@@ -87,115 +107,165 @@ type RabbitmqClusterSpec struct {
 	// +kubebuilder:validation:Minimum:=0
 	// +kubebuilder:default:=604800
 	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
-	// DelayStartSeconds is the time the init container (`setup-container`) will sleep before terminating.
-	// This effectively delays the time between starting the Pod and starting the `rabbitmq` container.
-	// RabbitMQ relies on up-to-date DNS entries early during peer discovery.
-	// The purpose of this artificial delay is to ensure that DNS entries are up-to-date when booting RabbitMQ.
-	// For more information, see https://github.com/kubernetes/kubernetes/issues/92559
-	// If your Kubernetes DNS backend is configured with a low DNS cache value or publishes not ready addresses
-	// promptly, you can decrase this value or set it to 0.
-	// +kubebuilder:validation:Minimum:=0
-	// +kubebuilder:default:=30
-	DelayStartSeconds *int32 `json:"delayStartSeconds,omitempty"`
-	// Secret backend configuration for the RabbitmqCluster.
-	// Enables to fetch default user credentials and certificates from K8s external secret stores.
-	SecretBackend SecretBackend `json:"secretBackend,omitempty"`
 }
 
-// SecretBackend configures a single secret backend.
-// Today, only Vault exists as supported secret backend.
-// Future secret backends could be Secrets Store CSI Driver.
-// If not configured, K8s Secrets will be used.
-type SecretBackend struct {
-	Vault          *VaultSpec              `json:"vault,omitempty"`
-	ExternalSecret v1.LocalObjectReference `json:"externalSecret,omitempty"`
-}
+// kubebuilder validating tags 'Pattern' and 'MaxLength' must be specified on string type.
+// Alias type 'string' as 'Plugin' to specify schema validation on items of the list 'AdditionalPlugins'
 
-// VaultSpec will add Vault annotations (see https://www.vaultproject.io/docs/platform/k8s/injector/annotations)
-// to RabbitMQ Pods. It requires a Vault Agent Sidecar Injector (https://www.vaultproject.io/docs/platform/k8s/injector)
-// to be installed in the K8s cluster. The injector is a K8s Mutation Webhook Controller that alters RabbitMQ Pod specifications
-// (based on the added Vault annotations) to include Vault Agent containers that render Vault secrets to the volume.
-type VaultSpec struct {
-	// Role in Vault.
-	// If vault.defaultUserPath is set, this role must have capability to read the pre-created default user credential in Vault.
-	// If vault.tls is set, this role must have capability to create and update certificates in the Vault PKI engine for the domains
-	// "<namespace>" and "<namespace>.svc".
-	Role string `json:"role,omitempty"`
-	// Vault annotations that override the Vault annotations set by the cluster-operator.
-	// For a list of valid Vault annotations, see https://www.vaultproject.io/docs/platform/k8s/injector/annotations
-	// +optional
+// A Plugin to enable on the RabbitmqCluster.
+// +kubebuilder:validation:Pattern:="^\\w+$"
+// +kubebuilder:validation:MaxLength=100
+type Plugin string
+
+// RabbitmqClusterServiceSpec settable attributes for the Service resource.
+type RabbitmqClusterServiceSpec struct {
+	// Type of Service to create for the cluster. Must be one of: ClusterIP, LoadBalancer, NodePort.
+	// For more info see https://pkg.go.dev/k8s.io/api/core/v1#ServiceType
+	// +kubebuilder:validation:Enum=ClusterIP;LoadBalancer;NodePort
+	// +kubebuilder:default:="ClusterIP"
+	Type corev1.ServiceType `json:"type,omitempty"`
+	// Annotations to add to the Service.
 	Annotations map[string]string `json:"annotations,omitempty"`
-	// Path in Vault to access a KV (Key-Value) secret with the fields username and password for the default user.
-	// For example "secret/data/rabbitmq/config".
-	DefaultUserPath string `json:"defaultUserPath,omitempty"`
-	// Sidecar container that updates the default user's password in RabbitMQ when it changes in Vault.
-	// Additionally, it updates /var/lib/rabbitmq/.rabbitmqadmin.conf (used by rabbitmqadmin CLI).
-	// Set to empty string to disable the sidecar container.
-	DefaultUserUpdaterImage *string      `json:"defaultUserUpdaterImage,omitempty"`
-	TLS                     VaultTLSSpec `json:"tls,omitempty"`
+	// IPFamilyPolicy represents the dual-stack-ness requested or required by a Service
+	// See also: https://pkg.go.dev/k8s.io/api/core/v1#IPFamilyPolicy
+	// +kubebuilder:validation:Enum=SingleStack;PreferDualStack;RequireDualStack
+	IPFamilyPolicy *corev1.IPFamilyPolicyType `json:"ipFamilyPolicy,omitempty"`
 }
 
-type VaultTLSSpec struct {
-	// Path in Vault PKI engine.
-	// For example "pki/issue/hashicorp-com".
-	// required
-	PKIIssuerPath string `json:"pkiIssuerPath,omitempty"`
-	// Specifies the requested certificate Common Name (CN).
-	// Defaults to <serviceName>.<namespace>.svc if not provided.
-	// +optional
-	CommonName string `json:"commonName,omitempty"`
-	// Specifies the requested Subject Alternative Names (SANs), in a comma-delimited list.
-	// These will be appended to the SANs added by the cluster-operator.
-	// The cluster-operator will add SANs:
-	// "<RabbitmqCluster name>-server-<index>.<RabbitmqCluster name>-nodes.<namespace>" for each pod,
-	// e.g. "myrabbit-server-0.myrabbit-nodes.default".
-	// +optional
-	AltNames string `json:"altNames,omitempty"`
-	// Specifies the requested IP Subject Alternative Names, in a comma-delimited list.
-	// +optional
-	IpSans string `json:"ipSans,omitempty"`
-	// Specifies an optional path to retrieve the root CA from vault.  Useful if certificates are issued by an intermediate CA
-	// +optional
-	PKIRootPath string `json:"pkiRootPath,omitempty"`
+// RabbitmqClusterPersistenceSpec spec the settings for the persistent storage desired for each Pod in the RabbitmqCluster.
+type RabbitmqClusterPersistenceSpec struct {
+	// The requested size of the persistent volume attached to each Pod in the RabbitmqCluster.
+	// The format of this field matches that defined by kubernetes/apimachinery.
+	// See https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource#Quantity for more info on the format of this field.
+	// +kubebuilder:default:="10Gi"
+	Storage *k8sresource.Quantity `json:"storage,omitempty"`
+	// The name of the StorageClass to claim a PersistentVolume from.
+	StorageClassName *string `json:"storageClassName,omitempty"`
 }
 
-func (spec *VaultSpec) TLSEnabled() bool {
-	return spec.TLS.PKIIssuerPath != ""
-}
-func (spec *VaultSpec) RootCAEnabled() bool {
-	return spec.TLS.PKIRootPath != ""
-}
-func (spec *VaultSpec) DefaultUserSecretEnabled() bool {
-	return spec.DefaultUserPath != ""
+// TLSSpec allows for the configuration of TLS certificates to be used by RabbitMQ. Also allows for non-TLS traffic to be disabled.
+type TLSSpec struct {
+	// Name of a Secret in the same Namespace as the RabbitmqCluster, containing the server's private key & public certificate for TLS.
+	// The Secret must store these as tls.key and tls.crt, respectively.
+	// This Secret can be created by running `kubectl create secret tls tls-secret --cert=path/to/tls.cert --key=path/to/tls.key`
+	SecretName string `json:"secretName,omitempty"`
+	// Name of a Secret in the same Namespace as the RabbitmqCluster, containing the Certificate Authority's public certificate for TLS.
+	// The Secret must store this as ca.crt.
+	// This Secret can be created by running `kubectl create secret generic ca-secret --from-file=ca.crt=path/to/ca.cert`
+	// Used for mTLS, and TLS for rabbitmq_web_stomp and rabbitmq_web_mqtt.
+	CaSecretName string `json:"caSecretName,omitempty"`
+	// When set to true, the RabbitmqCluster disables non-TLS listeners for RabbitMQ, management plugin and for any enabled plugins in the following list: stomp, mqtt, web_stomp, web_mqtt.
+	// Only TLS-enabled clients will be able to connect.
+	DisableNonTLSListeners bool `json:"disableNonTLSListeners,omitempty"`
 }
 
-// Provides the ability to override the generated manifest of several child resources.
+// RabbitmqClusterConfigurationSpec spec rabbitMQ-related configuration.
+type RabbitmqClusterConfigurationSpec struct {
+	// Specify any rabbitmq advanced.config configurations to apply to the cluster.
+	// For more information on advanced config, see https://www.rabbitmq.com/configure.html#advanced-config-file
+	// +kubebuilder:validation:MaxLength:=100000
+	AdvancedConfig string `json:"advancedConfig,omitempty"`
+	// Modify to add to the rabbitmq-env.conf file.
+	// Modifying this property on an existing RabbitmqCluster will trigger a StatefulSet rolling restart and will cause rabbitmq downtime.
+	// For more information on env config, see https://www.rabbitmq.com/man/rabbitmq-env.conf.5.html
+	// +kubebuilder:validation:MaxLength:=100000
+	EnvConfig string `json:"envConfig,omitempty"`
+	// Modify to add to the rabbitmq.conf file in addition to default configurations set by the operator.
+	// Modifying this property on an existing RabbitmqCluster will trigger a StatefulSet rolling restart and will cause rabbitmq downtime.
+	// For more information on this config, see https://www.rabbitmq.com/configure.html#config-file
+	// +kubebuilder:validation:MaxLength:=100000
+	AdditionalConfig string `json:"additionalConfig,omitempty"`
+	// Erlang Inet configuration to apply to the Erlang VM running rabbit.
+	// See also: https://www.erlang.org/doc/apps/erts/inet_cfg.html
+	// +kubebuilder:validation:MaxLength:=2000
+	ErlangInetConfig string `json:"erlangInetConfig,omitempty"`
+	// List of plugins to enable in addition to essential plugins: rabbitmq_management, rabbitmq_prometheus, and rabbitmq_peer_discovery_k8s.
+	// +kubebuilder:validation:MaxItems:=100
+	AdditionalPlugins []Plugin `json:"additionalPlugins,omitempty"`
+}
+
+// RabbitmqClusterOverrideSpec provides the ability to override the generated manifest of several child resources.
 type RabbitmqClusterOverrideSpec struct {
+	// Override configuration for the RabbitMQ Service.
+	Service *Service `json:"service,omitempty"`
 	// Override configuration for the RabbitMQ StatefulSet.
 	StatefulSet *StatefulSet `json:"statefulSet,omitempty"`
-	// Override configuration for the Service created to serve traffic to the cluster.
-	Service *Service `json:"service,omitempty"`
 }
 
-// Override configuration for the Service created to serve traffic to the cluster.
+// Service override configuration for the Service created to serve traffic to the cluster.
 // Allows for the manifest of the created Service to be overwritten with custom configuration.
 type Service struct {
-	// +optional
-	*EmbeddedLabelsAnnotations `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 	// Spec defines the behavior of a Service.
-	// https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
 	// +optional
 	Spec *corev1.ServiceSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
-}
-
-// Override configuration for the RabbitMQ StatefulSet.
-// Allows for the manifest of the created StatefulSet to be overwritten with custom configuration.
-type StatefulSet struct {
 	// +optional
 	*EmbeddedLabelsAnnotations `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+}
+
+// StatefulSet override configuration for the RabbitMQ StatefulSet.
+// Allows for the manifest of the created StatefulSet to be overwritten with custom configuration.
+type StatefulSet struct {
 	// Spec defines the desired identities of pods in this set.
 	// +optional
 	Spec *StatefulSetSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
+	// +optional
+	*EmbeddedLabelsAnnotations `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+}
+
+// EmbeddedLabelsAnnotations is an embedded subset of the fields included in k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta.
+// Only labels and annotations are included.
+type EmbeddedLabelsAnnotations struct {
+	// Map of string keys and values that can be used to organize and categorize
+	// (scope and select) objects. May match selectors of replication controllers
+	// and services.
+	// More info: http://kubernetes.io/docs/user-guide/labels
+	// +optional
+	Labels map[string]string `json:"labels,omitempty" protobuf:"bytes,11,rep,name=labels"`
+
+	// Annotations is an unstructured key value map stored with a resource that may be
+	// set by external tools to store and retrieve arbitrary metadata. They are not
+	// queryable and should be preserved when modifying objects.
+	// More info: http://kubernetes.io/docs/user-guide/annotations
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,12,rep,name=annotations"`
+}
+
+// EmbeddedObjectMeta is an embedded subset of the fields included in k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta.
+// Only fields which are relevant to embedded resources are included.
+type EmbeddedObjectMeta struct {
+	// Name must be unique within a namespace. Is required when creating resources, although
+	// some resources may allow a client to request the generation of an appropriate name
+	// automatically. Name is primarily intended for creation idempotence and configuration
+	// definition.
+	// Cannot be updated.
+	// More info: http://kubernetes.io/docs/user-guide/identifiers#names
+	// +optional
+	Name string `json:"name,omitempty" protobuf:"bytes,1,opt,name=name"`
+
+	// Namespace defines the space within each name must be unique. An empty namespace is
+	// equivalent to the "default" namespace, but "default" is the canonical representation.
+	// Not all objects are required to be scoped to a namespace - the value of this field for
+	// those objects will be empty.
+	//
+	// Must be a DNS_LABEL.
+	// Cannot be updated.
+	// More info: http://kubernetes.io/docs/user-guide/namespaces
+	// +optional
+	Namespace string `json:"namespace,omitempty" protobuf:"bytes,3,opt,name=namespace"`
+
+	// Map of string keys and values that can be used to organize and categorize
+	// (scope and select) objects. May match selectors of replication controllers
+	// and services.
+	// More info: http://kubernetes.io/docs/user-guide/labels
+	// +optional
+	Labels map[string]string `json:"labels,omitempty" protobuf:"bytes,11,rep,name=labels"`
+
+	// Annotations is an unstructured key value map stored with a resource that may be
+	// set by external tools to store and retrieve arbitrary metadata. They are not
+	// queryable and should be preserved when modifying objects.
+	// More info: http://kubernetes.io/docs/user-guide/annotations
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,12,rep,name=annotations"`
 }
 
 // StatefulSetSpec contains a subset of the fields included in k8s.io/api/apps/v1.StatefulSetSpec.
@@ -267,62 +337,6 @@ type StatefulSetSpec struct {
 	PersistentVolumeClaimRetentionPolicy *appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy `json:"persistentVolumeClaimRetentionPolicy,omitempty" protobuf:"bytes,10,opt,name=persistentVolumeClaimRetentionPolicy"`
 }
 
-// EmbeddedLabelsAnnotations is an embedded subset of the fields included in k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta.
-// Only labels and annotations are included.
-type EmbeddedLabelsAnnotations struct {
-	// Map of string keys and values that can be used to organize and categorize
-	// (scope and select) objects. May match selectors of replication controllers
-	// and services.
-	// More info: http://kubernetes.io/docs/user-guide/labels
-	// +optional
-	Labels map[string]string `json:"labels,omitempty" protobuf:"bytes,11,rep,name=labels"`
-
-	// Annotations is an unstructured key value map stored with a resource that may be
-	// set by external tools to store and retrieve arbitrary metadata. They are not
-	// queryable and should be preserved when modifying objects.
-	// More info: http://kubernetes.io/docs/user-guide/annotations
-	// +optional
-	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,12,rep,name=annotations"`
-}
-
-// EmbeddedObjectMeta is an embedded subset of the fields included in k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta.
-// Only fields which are relevant to embedded resources are included.
-type EmbeddedObjectMeta struct {
-	// Name must be unique within a namespace. Is required when creating resources, although
-	// some resources may allow a client to request the generation of an appropriate name
-	// automatically. Name is primarily intended for creation idempotence and configuration
-	// definition.
-	// Cannot be updated.
-	// More info: http://kubernetes.io/docs/user-guide/identifiers#names
-	// +optional
-	Name string `json:"name,omitempty" protobuf:"bytes,1,opt,name=name"`
-
-	// Namespace defines the space within each name must be unique. An empty namespace is
-	// equivalent to the "default" namespace, but "default" is the canonical representation.
-	// Not all objects are required to be scoped to a namespace - the value of this field for
-	// those objects will be empty.
-	//
-	// Must be a DNS_LABEL.
-	// Cannot be updated.
-	// More info: http://kubernetes.io/docs/user-guide/namespaces
-	// +optional
-	Namespace string `json:"namespace,omitempty" protobuf:"bytes,3,opt,name=namespace"`
-
-	// Map of string keys and values that can be used to organize and categorize
-	// (scope and select) objects. May match selectors of replication controllers
-	// and services.
-	// More info: http://kubernetes.io/docs/user-guide/labels
-	// +optional
-	Labels map[string]string `json:"labels,omitempty" protobuf:"bytes,11,rep,name=labels"`
-
-	// Annotations is an unstructured key value map stored with a resource that may be
-	// set by external tools to store and retrieve arbitrary metadata. They are not
-	// queryable and should be preserved when modifying objects.
-	// More info: http://kubernetes.io/docs/user-guide/annotations
-	// +optional
-	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,12,rep,name=annotations"`
-}
-
 // PodTemplateSpec is an embedded version of k8s.io/api/core/v1.PodTemplateSpec.
 // It contains a reduced ObjectMeta.
 type PodTemplateSpec struct {
@@ -351,141 +365,71 @@ type PersistentVolumeClaim struct {
 	Spec corev1.PersistentVolumeClaimSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
 }
 
-// Allows for the configuration of TLS certificates to be used by RabbitMQ. Also allows for non-TLS traffic to be disabled.
-type TLSSpec struct {
-	// Name of a Secret in the same Namespace as the RabbitmqCluster, containing the server's private key & public certificate for TLS.
-	// The Secret must store these as tls.key and tls.crt, respectively.
-	// This Secret can be created by running `kubectl create secret tls tls-secret --cert=path/to/tls.cert --key=path/to/tls.key`
-	SecretName string `json:"secretName,omitempty"`
-	// Name of a Secret in the same Namespace as the RabbitmqCluster, containing the Certificate Authority's public certificate for TLS.
-	// The Secret must store this as ca.crt.
-	// This Secret can be created by running `kubectl create secret generic ca-secret --from-file=ca.crt=path/to/ca.cert`
-	// Used for mTLS, and TLS for rabbitmq_web_stomp and rabbitmq_web_mqtt.
-	CaSecretName string `json:"caSecretName,omitempty"`
-	// When set to true, the RabbitmqCluster disables non-TLS listeners for RabbitMQ, management plugin and for any enabled plugins in the following list: stomp, mqtt, web_stomp, web_mqtt.
-	// Only TLS-enabled clients will be able to connect.
-	DisableNonTLSListeners bool `json:"disableNonTLSListeners,omitempty"`
+// SecretBackend configures a single secret backend.
+// Today, only Vault exists as supported secret backend.
+// Future secret backends could be Secrets Store CSI Driver.
+// If not configured, K8s Secrets will be used.
+type SecretBackend struct {
+	Vault          *VaultSpec              `json:"vault,omitempty"`
+	ExternalSecret v1.LocalObjectReference `json:"externalSecret,omitempty"`
 }
 
-// kubebuilder validating tags 'Pattern' and 'MaxLength' must be specified on string type.
-// Alias type 'string' as 'Plugin' to specify schema validation on items of the list 'AdditionalPlugins'
-
-// A Plugin to enable on the RabbitmqCluster.
-// +kubebuilder:validation:Pattern:="^\\w+$"
-// +kubebuilder:validation:MaxLength=100
-type Plugin string
-
-// RabbitMQ-related configuration.
-type RabbitmqClusterConfigurationSpec struct {
-	// List of plugins to enable in addition to essential plugins: rabbitmq_management, rabbitmq_prometheus, and rabbitmq_peer_discovery_k8s.
-	// +kubebuilder:validation:MaxItems:=100
-	AdditionalPlugins []Plugin `json:"additionalPlugins,omitempty"`
-	// Modify to add to the rabbitmq.conf file in addition to default configurations set by the operator.
-	// Modifying this property on an existing RabbitmqCluster will trigger a StatefulSet rolling restart and will cause rabbitmq downtime.
-	// For more information on this config, see https://www.rabbitmq.com/configure.html#config-file
-	// +kubebuilder:validation:MaxLength:=100000
-	AdditionalConfig string `json:"additionalConfig,omitempty"`
-	// Specify any rabbitmq advanced.config configurations to apply to the cluster.
-	// For more information on advanced config, see https://www.rabbitmq.com/configure.html#advanced-config-file
-	// +kubebuilder:validation:MaxLength:=100000
-	AdvancedConfig string `json:"advancedConfig,omitempty"`
-	// Modify to add to the rabbitmq-env.conf file. Modifying this property on an existing RabbitmqCluster will trigger a StatefulSet rolling restart and will cause rabbitmq downtime.
-	// For more information on env config, see https://www.rabbitmq.com/man/rabbitmq-env.conf.5.html
-	// +kubebuilder:validation:MaxLength:=100000
-	EnvConfig string `json:"envConfig,omitempty"`
-	// Erlang Inet configuration to apply to the Erlang VM running rabbit.
-	// See also: https://www.erlang.org/doc/apps/erts/inet_cfg.html
-	// +kubebuilder:validation:MaxLength:=2000
-	ErlangInetConfig string `json:"erlangInetConfig,omitempty"`
-}
-
-// The settings for the persistent storage desired for each Pod in the RabbitmqCluster.
-type RabbitmqClusterPersistenceSpec struct {
-	// The name of the StorageClass to claim a PersistentVolume from.
-	StorageClassName *string `json:"storageClassName,omitempty"`
-	// The requested size of the persistent volume attached to each Pod in the RabbitmqCluster.
-	// The format of this field matches that defined by kubernetes/apimachinery.
-	// See https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource#Quantity for more info on the format of this field.
-	// +kubebuilder:default:="10Gi"
-	Storage *k8sresource.Quantity `json:"storage,omitempty"`
-}
-
-// Settable attributes for the Service resource.
-type RabbitmqClusterServiceSpec struct {
-	// Type of Service to create for the cluster. Must be one of: ClusterIP, LoadBalancer, NodePort.
-	// For more info see https://pkg.go.dev/k8s.io/api/core/v1#ServiceType
-	// +kubebuilder:validation:Enum=ClusterIP;LoadBalancer;NodePort
-	// +kubebuilder:default:="ClusterIP"
-	Type corev1.ServiceType `json:"type,omitempty"`
-	// Annotations to add to the Service.
+// VaultSpec will add Vault annotations (see https://www.vaultproject.io/docs/platform/k8s/injector/annotations)
+// to RabbitMQ Pods. It requires a Vault Agent Sidecar Injector (https://www.vaultproject.io/docs/platform/k8s/injector)
+// to be installed in the K8s cluster. The injector is a K8s Mutation Webhook Controller that alters RabbitMQ Pod specifications
+// (based on the added Vault annotations) to include Vault Agent containers that render Vault secrets to the volume.
+type VaultSpec struct {
+	// Role in Vault.
+	// If vault.defaultUserPath is set, this role must have capability to read the pre-created default user credential in Vault.
+	// If vault.tls is set, this role must have capability to create and update certificates in the Vault PKI engine for the domains
+	// "<namespace>" and "<namespace>.svc".
+	Role string `json:"role,omitempty"`
+	// Vault annotations that override the Vault annotations set by the cluster-operator.
+	// For a list of valid Vault annotations, see https://www.vaultproject.io/docs/platform/k8s/injector/annotations
+	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
-	// IPFamilyPolicy represents the dual-stack-ness requested or required by a Service
-	// See also: https://pkg.go.dev/k8s.io/api/core/v1#IPFamilyPolicy
-	// +kubebuilder:validation:Enum=SingleStack;PreferDualStack;RequireDualStack
-	IPFamilyPolicy *corev1.IPFamilyPolicy `json:"ipFamilyPolicy,omitempty"`
+	// Path in Vault to access a KV (Key-Value) secret with the fields username and password for the default user.
+	// For example "secret/data/rabbitmq/config".
+	DefaultUserPath string `json:"defaultUserPath,omitempty"`
+	// Sidecar container that updates the default user's password in RabbitMQ when it changes in Vault.
+	// Additionally, it updates /var/lib/rabbitmq/.rabbitmqadmin.conf (used by rabbitmqadmin CLI).
+	// Set to empty string to disable the sidecar container.
+	DefaultUserUpdaterImage *string      `json:"defaultUserUpdaterImage,omitempty"`
+	TLS                     VaultTLSSpec `json:"tls,omitempty"`
 }
 
-func (cluster *RabbitmqCluster) TLSEnabled() bool {
-	return cluster.SecretTLSEnabled() || cluster.VaultTLSEnabled()
-}
-func (cluster *RabbitmqCluster) SecretTLSEnabled() bool {
-	return cluster.Spec.TLS.SecretName != ""
-}
-
-func (cluster *RabbitmqCluster) MutualTLSEnabled() bool {
-	return (cluster.SecretTLSEnabled() && cluster.Spec.TLS.CaSecretName != "") || cluster.VaultTLSEnabled()
-}
-
-func (cluster *RabbitmqCluster) MemoryLimited() bool {
-	return cluster.Spec.Resources != nil && cluster.Spec.Resources.Limits != nil && !cluster.Spec.Resources.Limits.Memory().IsZero()
-}
-
-func (cluster *RabbitmqCluster) SingleTLSSecret() bool {
-	return cluster.MutualTLSEnabled() && cluster.Spec.TLS.CaSecretName == cluster.Spec.TLS.SecretName
-}
-
-func (cluster *RabbitmqCluster) DisableNonTLSListeners() bool {
-	return cluster.Spec.TLS.DisableNonTLSListeners
-}
-
-func (cluster *RabbitmqCluster) AdditionalPluginEnabled(plugin Plugin) bool {
-	for _, p := range cluster.Spec.Rabbitmq.AdditionalPlugins {
-		if p == plugin {
-			return true
-		}
-	}
-	return false
+type VaultTLSSpec struct {
+	// Path in Vault PKI engine.
+	// For example "pki/issue/hashicorp-com".
+	// required
+	PKIIssuerPath string `json:"pkiIssuerPath,omitempty"`
+	// Specifies the requested certificate Common Name (CN).
+	// Defaults to <serviceName>.<namespace>.svc if not provided.
+	// +optional
+	CommonName string `json:"commonName,omitempty"`
+	// Specifies the requested Subject Alternative Names (SANs), in a comma-delimited list.
+	// These will be appended to the SANs added by the cluster-operator.
+	// The cluster-operator will add SANs:
+	// "<RabbitmqCluster name>-server-<index>.<RabbitmqCluster name>-nodes.<namespace>" for each pod,
+	// e.g. "myrabbit-server-0.myrabbit-nodes.default".
+	// +optional
+	AltNames string `json:"altNames,omitempty"`
+	// Specifies the requested IP Subject Alternative Names, in a comma-delimited list.
+	// +optional
+	IpSans string `json:"ipSans,omitempty"`
+	// Specifies an optional path to retrieve the root CA from vault.  Useful if certificates are issued by an intermediate CA
+	// +optional
+	PKIRootPath string `json:"pkiRootPath,omitempty"`
 }
 
-// StreamNeeded returns true when stream or plugins that auto enable stream are turned on
-func (cluster *RabbitmqCluster) StreamNeeded() bool {
-	return cluster.AdditionalPluginEnabled("rabbitmq_stream") ||
-		cluster.AdditionalPluginEnabled("rabbitmq_stream_management") ||
-		cluster.AdditionalPluginEnabled("rabbitmq_multi_dc_replication")
+func (spec *VaultSpec) TLSEnabled() bool {
+	return spec.TLS.PKIIssuerPath != ""
 }
-
-func (cluster *RabbitmqCluster) VaultEnabled() bool {
-	return cluster.Spec.SecretBackend.Vault != nil
+func (spec *VaultSpec) RootCAEnabled() bool {
+	return spec.TLS.PKIRootPath != ""
 }
-
-func (cluster *RabbitmqCluster) ExternalSecretEnabled() bool {
-	return cluster.Spec.SecretBackend.ExternalSecret.Name != ""
-}
-
-func (cluster *RabbitmqCluster) UsesDefaultUserUpdaterImage(controlRabbitmqImage bool) bool {
-	return cluster.VaultEnabled() && (cluster.Spec.SecretBackend.Vault.DefaultUserUpdaterImage == nil || controlRabbitmqImage)
-}
-
-func (cluster *RabbitmqCluster) VaultDefaultUserSecretEnabled() bool {
-	return cluster.VaultEnabled() && cluster.Spec.SecretBackend.Vault.DefaultUserSecretEnabled()
-}
-
-func (cluster *RabbitmqCluster) VaultTLSEnabled() bool {
-	return cluster.VaultEnabled() && cluster.Spec.SecretBackend.Vault.TLSEnabled()
-}
-
-func (cluster *RabbitmqCluster) ServiceSubDomain() string {
-	return fmt.Sprintf("%s.%s.svc", cluster.Name, cluster.Namespace)
+func (spec *VaultSpec) DefaultUserSecretEnabled() bool {
+	return spec.DefaultUserPath != ""
 }
 
 // +kubebuilder:object:root=true
@@ -500,15 +444,34 @@ type RabbitmqClusterList struct {
 	Items []RabbitmqCluster `json:"items"`
 }
 
-func (cluster RabbitmqCluster) ChildResourceName(name string) string {
+func (cluster *RabbitmqCluster) ServiceSubDomain() string {
+	return fmt.Sprintf("%s.%s.svc", cluster.Name, cluster.Namespace)
+}
+func (cluster *RabbitmqCluster) ChildResourceName(name string) string {
 	return strings.TrimSuffix(strings.Join([]string{cluster.Name, name}, "-"), "-")
 }
 
-func (cluster RabbitmqCluster) PVCName(i int) string {
-	return strings.Join([]string{"persistence", cluster.Name, "server", strconv.Itoa(i)}, "-")
+func (cluster *RabbitmqCluster) MemoryLimited() bool {
+	return cluster.Spec.Resources != nil && cluster.Spec.Resources.Limits != nil && !cluster.Spec.Resources.Limits.Memory().IsZero()
 }
 
-func (cluster RabbitmqCluster) DisableDefaultTopologySpreadConstraints() bool {
+// StreamNeeded returns true when stream or plugins that auto enable stream are turned on
+func (cluster *RabbitmqCluster) StreamNeeded() bool {
+	return cluster.AdditionalPluginEnabled("rabbitmq_stream") ||
+		cluster.AdditionalPluginEnabled("rabbitmq_stream_management") ||
+		cluster.AdditionalPluginEnabled("rabbitmq_multi_dc_replication")
+}
+
+func (cluster *RabbitmqCluster) AdditionalPluginEnabled(plugin Plugin) bool {
+	for _, p := range cluster.Spec.Rabbitmq.AdditionalPlugins {
+		if p == plugin {
+			return true
+		}
+	}
+	return false
+}
+
+func (cluster *RabbitmqCluster) DisableDefaultTopologySpreadConstraints() bool {
 	value, ok := cluster.Annotations[DisableDefaultTopologySpreadAnnotation]
 	if ok && strings.TrimSpace(value) == "true" {
 		return true
@@ -516,6 +479,32 @@ func (cluster RabbitmqCluster) DisableDefaultTopologySpreadConstraints() bool {
 	return false
 }
 
-func init() {
-	SchemeBuilder.Register(&RabbitmqCluster{}, &RabbitmqClusterList{})
+func (cluster *RabbitmqCluster) TLSEnabled() bool {
+	return cluster.SecretTLSEnabled() || cluster.VaultTLSEnabled()
+}
+
+func (cluster *RabbitmqCluster) SecretTLSEnabled() bool {
+	return cluster.Spec.TLS.SecretName != ""
+}
+func (cluster *RabbitmqCluster) DisableNonTLSListeners() bool {
+	return cluster.Spec.TLS.DisableNonTLSListeners
+}
+func (cluster *RabbitmqCluster) SingleTLSSecret() bool {
+	return cluster.MutualTLSEnabled() && cluster.Spec.TLS.CaSecretName == cluster.Spec.TLS.SecretName
+}
+func (cluster *RabbitmqCluster) MutualTLSEnabled() bool {
+	return (cluster.SecretTLSEnabled() && cluster.Spec.TLS.CaSecretName != "") || cluster.VaultTLSEnabled()
+}
+
+func (cluster *RabbitmqCluster) VaultEnabled() bool {
+	return cluster.Spec.SecretBackend.Vault != nil
+}
+func (cluster *RabbitmqCluster) ExternalSecretEnabled() bool {
+	return cluster.Spec.SecretBackend.ExternalSecret.Name != ""
+}
+func (cluster *RabbitmqCluster) VaultTLSEnabled() bool {
+	return cluster.VaultEnabled() && cluster.Spec.SecretBackend.Vault.TLSEnabled()
+}
+func (cluster *RabbitmqCluster) VaultDefaultUserSecretEnabled() bool {
+	return cluster.VaultEnabled() && cluster.Spec.SecretBackend.Vault.DefaultUserSecretEnabled()
 }

@@ -4905,7 +4905,8 @@ spec:
                       type: string
                     envConfig:
                       description: |-
-                        Modify to add to the rabbitmq-env.conf file. Modifying this property on an existing RabbitmqCluster will trigger a StatefulSet rolling restart and will cause rabbitmq downtime.
+                        Modify to add to the rabbitmq-env.conf file.
+                        Modifying this property on an existing RabbitmqCluster will trigger a StatefulSet rolling restart and will cause rabbitmq downtime.
                         For more information on env config, see https://www.rabbitmq.com/man/rabbitmq-env.conf.5.html
                       maxLength: 100000
                       type: string
@@ -4919,7 +4920,8 @@ spec:
                 replicas:
                   default: 1
                   description: |-
-                    Replicas is the number of nodes in the RabbitMQ cluster. Each node is deployed as a Replica in a StatefulSet. Only 1, 3, 5 replicas clusters are tested.
+                    Replicas is the number of nodes in the RabbitMQ cluster.
+                    Each node is deployed as a Replica in a StatefulSet. Only 1, 3, 5 replicas clusters are tested.
                     This value should be an odd number to ensure the resultant cluster can establish exactly one quorum of nodes
                     in the event of a fragmenting network partition.
                   format: int32

@@ -14,17 +14,19 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	rabbitmqstatus "github.com/rabbitmq/cluster-operator/v2/internal/status"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	mqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	rabbitmqstatus "github.com/rabbitmq/cluster-operator/v2/internal/status"
 )
 
 var _ = Describe("AllReplicasReady", func() {
 	var (
 		sts             *appsv1.StatefulSet
-		oldCondition    *rabbitmqstatus.RabbitmqClusterCondition
+		oldCondition    *mqv1beta1.RabbitmqClusterCondition
 		desiredReplicas int32 = 5
 	)
 
@@ -143,7 +145,7 @@ var _ = Describe("AllReplicasReady", func() {
 
 		Context("previous condition was false", func() {
 			BeforeEach(func() {
-				oldCondition = &rabbitmqstatus.RabbitmqClusterCondition{
+				oldCondition = &mqv1beta1.RabbitmqClusterCondition{
 					Status: corev1.ConditionFalse,
 					LastTransitionTime: metav1.Time{
 						Time: previousConditionTime,
@@ -201,7 +203,7 @@ var _ = Describe("AllReplicasReady", func() {
 
 		Context("previous condition was true", func() {
 			BeforeEach(func() {
-				oldCondition = &rabbitmqstatus.RabbitmqClusterCondition{
+				oldCondition = &mqv1beta1.RabbitmqClusterCondition{
 					Status: corev1.ConditionTrue,
 					LastTransitionTime: metav1.Time{
 						Time: previousConditionTime,
@@ -258,7 +260,7 @@ var _ = Describe("AllReplicasReady", func() {
 
 		Context("previous condition was unknown", func() {
 			BeforeEach(func() {
-				oldCondition = &rabbitmqstatus.RabbitmqClusterCondition{
+				oldCondition = &mqv1beta1.RabbitmqClusterCondition{
 					Status: corev1.ConditionUnknown,
 					LastTransitionTime: metav1.Time{
 						Time: previousConditionTime,

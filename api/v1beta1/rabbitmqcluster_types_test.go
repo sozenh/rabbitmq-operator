@@ -9,20 +9,18 @@
 package v1beta1
 
 import (
+	"golang.org/x/net/context"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rabbitmq/cluster-operator/v2/internal/status"
-	appsv1 "k8s.io/api/apps/v1"
+
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
-
-	"golang.org/x/net/context"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 )
 
 var _ = Describe("RabbitmqCluster", func() {
@@ -455,85 +453,6 @@ var _ = Describe("RabbitmqCluster", func() {
 					Expect(fetchedRabbit.Spec.SecretBackend.Vault.TLSEnabled()).To(BeTrue())
 				})
 			})
-		})
-	})
-	Context("RabbitmqClusterStatus", func() {
-		It("sets conditions based on inputs", func() {
-			rabbitmqClusterStatus := RabbitmqClusterStatus{}
-			statefulset := &appsv1.StatefulSet{}
-			statefulset.Spec.Template.Spec.Containers = []corev1.Container{
-				{
-					Resources: corev1.ResourceRequirements{
-						Limits: map[corev1.ResourceName]resource.Quantity{
-							"memory": resource.MustParse("100Mi"),
-						},
-						Requests: map[corev1.ResourceName]resource.Quantity{
-							"memory": resource.MustParse("100Mi"),
-						},
-					},
-				},
-			}
-
-			statefulset.Status = appsv1.StatefulSetStatus{
-				ObservedGeneration: 0,
-				Replicas:           0,
-				ReadyReplicas:      3,
-				CurrentReplicas:    0,
-				UpdatedReplicas:    0,
-				CurrentRevision:    "",
-				UpdateRevision:     "",
-				CollisionCount:     nil,
-				Conditions:         nil,
-			}
-
-			endPoints := &corev1.Endpoints{
-				Subsets: []corev1.EndpointSubset{
-					{
-						Addresses: []corev1.EndpointAddress{
-							{
-								IP: "127.0.0.1",
-							},
-						},
-					},
-				},
-			}
-
-			rabbitmqClusterStatus.SetConditions([]runtime.Object{statefulset, endPoints})
-
-			Expect(rabbitmqClusterStatus.Conditions).To(HaveLen(4))
-			Expect(rabbitmqClusterStatus.Conditions[0].Type).To(Equal(status.AllReplicasReady))
-			Expect(rabbitmqClusterStatus.Conditions[1].Type).To(Equal(status.ClusterAvailable))
-			Expect(rabbitmqClusterStatus.Conditions[2].Type).To(Equal(status.NoWarnings))
-			Expect(rabbitmqClusterStatus.Conditions[3].Type).To(Equal(status.ReconcileSuccess))
-		})
-
-		It("updates an arbitrary condition", func() {
-			someCondition := status.RabbitmqClusterCondition{}
-			someCondition.Type = "a-type"
-			someCondition.Reason = "whynot"
-			someCondition.Status = "perhaps"
-			someCondition.LastTransitionTime = metav1.Unix(10, 0)
-			rmqStatus := RabbitmqClusterStatus{
-				Conditions: []status.RabbitmqClusterCondition{someCondition},
-			}
-
-			rmqStatus.SetCondition("a-type",
-				corev1.ConditionTrue, "some-reason", "my-message")
-
-			updatedCondition := rmqStatus.Conditions[0]
-			Expect(updatedCondition.Status).To(Equal(corev1.ConditionTrue))
-			Expect(updatedCondition.Reason).To(Equal("some-reason"))
-			Expect(updatedCondition.Message).To(Equal("my-message"))
-
-			notExpectedTime := metav1.Unix(10, 0)
-			Expect(updatedCondition.LastTransitionTime).NotTo(Equal(notExpectedTime))
-			Expect(updatedCondition.LastTransitionTime.Before(&notExpectedTime)).To(BeFalse())
-		})
-	})
-	Context("PVC Name helper function", func() {
-		It("returns the correct PVC name", func() {
-			r := generateRabbitmqClusterObject("testrabbit")
-			Expect(r.PVCName(0)).To(Equal("persistence-testrabbit-server-0"))
 		})
 	})
 })

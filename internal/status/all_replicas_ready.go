@@ -17,15 +17,27 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	mqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
 
-func AllReplicasReadyCondition(resources []runtime.Object,
-	oldCondition *RabbitmqClusterCondition) RabbitmqClusterCondition {
+func AllReplicasReadyCondition(
+	resources []runtime.Object,
+	oldCondition *mqv1beta1.RabbitmqClusterCondition) mqv1beta1.RabbitmqClusterCondition {
 
-	condition := newRabbitmqClusterCondition(AllReplicasReady)
+	condition := newRabbitmqClusterCondition(mqv1beta1.AllReplicasReady)
 	if oldCondition != nil {
 		condition.LastTransitionTime = oldCondition.LastTransitionTime
 	}
+	defer func() {
+		if oldCondition != nil {
+			if oldCondition.Status != condition.Status ||
+				oldCondition.Reason != condition.Reason ||
+				oldCondition.Message != condition.Message {
+				condition.LastTransitionTime = metav1.Time{Time: time.Now()}
+			}
+		}
+	}()
 
 	for _, res := range resources {
 		switch resource := res.(type) {
@@ -34,7 +46,7 @@ func AllReplicasReadyCondition(resources []runtime.Object,
 				condition.Status = corev1.ConditionUnknown
 				condition.Reason = "MissingStatefulSet"
 				condition.Message = "Could not find StatefulSet"
-				goto assignLastTransitionTime
+				continue
 			}
 
 			var desiredReplicas int32 = 1
@@ -44,21 +56,12 @@ func AllReplicasReadyCondition(resources []runtime.Object,
 			if desiredReplicas == resource.Status.ReadyReplicas {
 				condition.Status = corev1.ConditionTrue
 				condition.Reason = "AllPodsAreReady"
-				goto assignLastTransitionTime
+				continue
 			}
 
 			condition.Status = corev1.ConditionFalse
 			condition.Reason = "NotAllPodsReady"
-			condition.Message = fmt.Sprintf("%d/%d Pods ready",
-				resource.Status.ReadyReplicas,
-				desiredReplicas)
-		}
-	}
-
-assignLastTransitionTime:
-	if oldCondition == nil || oldCondition.Status != condition.Status {
-		condition.LastTransitionTime = metav1.Time{
-			Time: time.Now(),
+			condition.Message = fmt.Sprintf("%d/%d Pods ready", resource.Status.ReadyReplicas, desiredReplicas)
 		}
 	}
 

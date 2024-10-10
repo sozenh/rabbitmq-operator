@@ -7,55 +7,76 @@
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE file.
 //
 
-// +kubebuilder:object:generate=true
-// +groupName=rabbitmq.com
 package status
 
 import (
-	"strings"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	mqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
 
-const (
-	AllReplicasReady RabbitmqClusterConditionType = "AllReplicasReady"
-	ClusterAvailable RabbitmqClusterConditionType = "ClusterAvailable"
-	NoWarnings       RabbitmqClusterConditionType = "NoWarnings"
-	ReconcileSuccess RabbitmqClusterConditionType = "ReconcileSuccess"
-)
+type RabbitmqClusterCondition mqv1beta1.RabbitmqClusterCondition
 
-type RabbitmqClusterConditionType string
-
-type RabbitmqClusterCondition struct {
-	// Type indicates the scope of RabbitmqCluster status addressed by the condition.
-	Type RabbitmqClusterConditionType `json:"type"`
-	// True, False, or Unknown
-	Status corev1.ConditionStatus `json:"status"`
-	// The last time this Condition type changed.
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
-	// One word, camel-case reason for current status of the condition.
-	Reason string `json:"reason,omitempty"`
-	// Full text reason for current status of the condition.
-	Message string `json:"message,omitempty"`
-}
-
-func newRabbitmqClusterCondition(conditionType RabbitmqClusterConditionType) RabbitmqClusterCondition {
-	return RabbitmqClusterCondition{
+func newRabbitmqClusterCondition(
+	conditionType mqv1beta1.RabbitmqClusterConditionType) mqv1beta1.RabbitmqClusterCondition {
+	return mqv1beta1.RabbitmqClusterCondition{
 		Type:               conditionType,
 		Status:             corev1.ConditionUnknown,
 		LastTransitionTime: metav1.Time{},
 	}
 }
 
-func (condition *RabbitmqClusterCondition) UpdateState(status corev1.ConditionStatus) {
-	if condition.Status != status {
-		condition.LastTransitionTime = metav1.Now()
+func SetCondition(
+	clusterStatus *mqv1beta1.RabbitmqClusterStatus,
+	condType mqv1beta1.RabbitmqClusterConditionType,
+	condStatus corev1.ConditionStatus, reason string, messages ...string) {
+	for i := range clusterStatus.Conditions {
+		if clusterStatus.Conditions[i].Type == condType {
+			clusterStatus.Conditions[i].UpdateState(condStatus)
+			clusterStatus.Conditions[i].UpdateReason(reason, messages...)
+			break
+		}
 	}
-	condition.Status = status
 }
 
-func (condition *RabbitmqClusterCondition) UpdateReason(reason string, messages ...string) {
-	condition.Reason = reason
-	condition.Message = strings.Join(messages, ". ")
+func SetConditions(
+	resources []runtime.Object, clusterStatus *mqv1beta1.RabbitmqClusterStatus) {
+
+	var oldAllReplicasReadyCondition *mqv1beta1.RabbitmqClusterCondition
+	var oldClusterAvailableCondition *mqv1beta1.RabbitmqClusterCondition
+	var oldNoWarningsCondition *mqv1beta1.RabbitmqClusterCondition
+	var oldReconcileSuccessCondition *mqv1beta1.RabbitmqClusterCondition
+
+	for _, condition := range clusterStatus.Conditions {
+		switch condition.Type {
+		case mqv1beta1.NoWarnings:
+			oldNoWarningsCondition = condition.DeepCopy()
+		case mqv1beta1.AllReplicasReady:
+			oldAllReplicasReadyCondition = condition.DeepCopy()
+		case mqv1beta1.ClusterAvailable:
+			oldClusterAvailableCondition = condition.DeepCopy()
+		case mqv1beta1.ReconcileSuccess:
+			oldReconcileSuccessCondition = condition.DeepCopy()
+		}
+	}
+
+	noWarningsCond := NoWarningsCondition(resources, oldNoWarningsCondition)
+	allReplicasReadyCond := AllReplicasReadyCondition(resources, oldAllReplicasReadyCondition)
+	clusterAvailableCond := ClusterAvailableCondition(resources, oldClusterAvailableCondition)
+
+	var reconciledCondition mqv1beta1.RabbitmqClusterCondition
+	if oldReconcileSuccessCondition != nil {
+		reconciledCondition = *oldReconcileSuccessCondition
+	} else {
+		reconciledCondition = ReconcileSuccessCondition(corev1.ConditionUnknown, "Initialising", "")
+	}
+
+	clusterStatus.Conditions = []mqv1beta1.RabbitmqClusterCondition{
+		allReplicasReadyCond,
+		clusterAvailableCond,
+		noWarningsCond,
+		reconciledCondition,
+	}
 }

@@ -9,8 +9,6 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	"github.com/onsi/gomega/types"
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
-	"github.com/rabbitmq/cluster-operator/v2/internal/scaling"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
@@ -18,6 +16,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
+	"github.com/rabbitmq/cluster-operator/v2/internal/scaling"
 )
 
 func TestScaling(t *testing.T) {
@@ -58,7 +60,7 @@ func generatePVCTemplate(size k8sresource.Quantity) corev1.PersistentVolumeClaim
 }
 
 func generatePVC(rmq rabbitmqv1beta1.RabbitmqCluster, index int, size k8sresource.Quantity) corev1.PersistentVolumeClaim {
-	name := rmq.PVCName(index)
+	name := constant.GetPVCName(rmq.Name, index)
 	return corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,

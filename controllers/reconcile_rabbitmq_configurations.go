@@ -7,8 +7,6 @@ import (
 
 	"github.com/go-logr/logr"
 
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
-	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,6 +14,10 @@ import (
 	clientretry "k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
+	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 )
 
 const (
@@ -41,7 +43,7 @@ func (r *RabbitmqClusterReconciler) annotateIfNeeded(ctx context.Context, logger
 			return nil
 		}
 		obj = &corev1.ConfigMap{}
-		objName = rmq.ChildResourceName(resource.PluginsConfigName)
+		objName = rmq.ChildResourceName(constant.ResourcePluginConfigMapSuffix)
 		annotationKey = pluginsUpdateAnnotation
 
 	case *resource.ServerConfigMapBuilder:
@@ -49,7 +51,7 @@ func (r *RabbitmqClusterReconciler) annotateIfNeeded(ctx context.Context, logger
 			return nil
 		}
 		obj = &corev1.ConfigMap{}
-		objName = rmq.ChildResourceName(resource.ServerConfigMapName)
+		objName = rmq.ChildResourceName(constant.ResourceServerConfigMapSuffix)
 		annotationKey = serverConfAnnotation
 
 	case *resource.StatefulSetBuilder:
@@ -57,7 +59,7 @@ func (r *RabbitmqClusterReconciler) annotateIfNeeded(ctx context.Context, logger
 			return nil
 		}
 		obj = &appsv1.StatefulSet{}
-		objName = rmq.ChildResourceName("server")
+		objName = rmq.ChildResourceName(constant.ResourceStatefulsetSuffix)
 		annotationKey = stsCreateAnnotation
 
 	default:
@@ -79,7 +81,7 @@ func (r *RabbitmqClusterReconciler) annotateIfNeeded(ctx context.Context, logger
 // It compares annotation "rabbitmq.com/serverConfUpdatedAt" from server-conf configMap and annotation "rabbitmq.com/lastRestartAt" from sts
 // to determine whether to restart sts.
 func (r *RabbitmqClusterReconciler) restartStatefulSetIfNeeded(ctx context.Context, logger logr.Logger, rmq *rabbitmqv1beta1.RabbitmqCluster) (time.Duration, error) {
-	serverConf, err := r.configMap(ctx, rmq, rmq.ChildResourceName(resource.ServerConfigMapName))
+	serverConf, err := r.configMap(ctx, rmq, rmq.ChildResourceName(constant.ResourceServerConfigMapSuffix))
 	if err != nil {
 		// requeue request after 10s if unable to find server-conf configmap, else return the error
 		return 10 * time.Second, client.IgnoreNotFound(err)

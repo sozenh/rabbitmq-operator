@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -17,6 +17,9 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
 )
 
 type PersistenceScaler struct {
@@ -80,7 +83,7 @@ func (p PersistenceScaler) getClusterPVCs(ctx context.Context, rmq rabbitmqv1bet
 
 	var i int32
 	for i = 0; i < ptr.Deref(rmq.Spec.Replicas, 1); i++ {
-		pvc, err := p.Client.CoreV1().PersistentVolumeClaims(rmq.Namespace).Get(ctx, rmq.PVCName(int(i)), metav1.GetOptions{})
+		pvc, err := p.Client.CoreV1().PersistentVolumeClaims(rmq.Namespace).Get(ctx, constant.GetPVCName(rmq.Name, int(i)), metav1.GetOptions{})
 		if client.IgnoreNotFound(err) != nil {
 			logErr := fmt.Errorf("failed to get PVC from Kubernetes API: %w", err)
 			logger.Error(logErr, "Could not read existing PVC")
@@ -112,7 +115,7 @@ func (p PersistenceScaler) pvcsNeedingScaling(existingPVCs []*corev1.PersistentV
 }
 
 func (p PersistenceScaler) getSts(ctx context.Context, rmq rabbitmqv1beta1.RabbitmqCluster) (*appsv1.StatefulSet, error) {
-	return p.Client.AppsV1().StatefulSets(rmq.Namespace).Get(ctx, rmq.ChildResourceName("server"), metav1.GetOptions{})
+	return p.Client.AppsV1().StatefulSets(rmq.Namespace).Get(ctx, rmq.ChildResourceName(constant.ResourceStatefulsetSuffix), metav1.GetOptions{})
 }
 
 func (p PersistenceScaler) existingCapacity(ctx context.Context, rmq rabbitmqv1beta1.RabbitmqCluster) (k8sresource.Quantity, error) {
@@ -122,7 +125,7 @@ func (p PersistenceScaler) existingCapacity(ctx context.Context, rmq rabbitmqv1b
 	}
 
 	for _, t := range sts.Spec.VolumeClaimTemplates {
-		if t.Name == "persistence" {
+		if t.Name == constant.PVCName {
 			return t.Spec.Resources.Requests[corev1.ResourceStorage], nil
 		}
 	}
@@ -156,7 +159,7 @@ func (p PersistenceScaler) deleteSts(ctx context.Context, rmq rabbitmqv1beta1.Ra
 	}
 
 	if err := retryWithInterval(logger, "delete statefulSet", 10, 3*time.Second, func() bool {
-		_, getErr := p.Client.AppsV1().StatefulSets(rmq.Namespace).Get(ctx, rmq.ChildResourceName("server"), metav1.GetOptions{})
+		_, getErr := p.Client.AppsV1().StatefulSets(rmq.Namespace).Get(ctx, rmq.ChildResourceName(constant.ResourceStatefulsetSuffix), metav1.GetOptions{})
 		return k8serrors.IsNotFound(getErr)
 	}); err != nil {
 		msg := "statefulSet not deleting after 30 seconds"

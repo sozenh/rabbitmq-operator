@@ -6,8 +6,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
-	"github.com/rabbitmq/cluster-operator/v2/internal/status"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
@@ -15,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	runtimeClient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
 
 var _ = Describe("Persistence", func() {
@@ -75,7 +75,7 @@ var _ = Describe("Persistence", func() {
 				}, rabbit)).To(Succeed())
 
 				for i := range rabbit.Status.Conditions {
-					if rabbit.Status.Conditions[i].Type == status.ReconcileSuccess {
+					if rabbit.Status.Conditions[i].Type == rabbitmqv1beta1.ReconcileSuccess {
 						return fmt.Sprintf(
 							"ReconcileSuccess status: %s, with reason: %s and message: %s",
 							rabbit.Status.Conditions[i].Status,

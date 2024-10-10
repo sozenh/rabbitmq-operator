@@ -40,3 +40,11 @@ func LabelSelector(instanceName string) label {
 		"app.kubernetes.io/name": instanceName,
 	}
 }
+
+func ReconcileLabels(existing map[string]string, defaults ...map[string]string) map[string]string {
+	return mergeWithFilter(func(k string) bool { return true }, existing, defaults...)
+}
+
+func ReconcileAndFilterLabels(existing map[string]string, defaults ...map[string]string) map[string]string {
+	return mergeWithFilter(isNotKubernetesAnnotation, existing, defaults...)
+}

@@ -1,15 +1,16 @@
 package v1beta1
 
 import (
-	"github.com/rabbitmq/cluster-operator/v2/internal/status"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Status presents the observed state of RabbitmqCluster
+// RabbitmqClusterStatus presents the observed state of RabbitmqCluster
 type RabbitmqClusterStatus struct {
 	// Set of Conditions describing the current state of the RabbitmqCluster
-	Conditions []status.RabbitmqClusterCondition `json:"conditions"`
+	Conditions []RabbitmqClusterCondition `json:"conditions"`
 
 	// Identifying information on internal resources
 	DefaultUser *RabbitmqClusterDefaultUser `json:"defaultUser,omitempty"`
@@ -24,7 +25,7 @@ type RabbitmqClusterStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
-// Contains references to resources created with the RabbitmqCluster resource.
+// RabbitmqClusterDefaultUser contains references to resources created with the RabbitmqCluster resource.
 type RabbitmqClusterDefaultUser struct {
 	// Reference to the Kubernetes Secret containing the credentials of the default
 	// user.
@@ -33,7 +34,7 @@ type RabbitmqClusterDefaultUser struct {
 	ServiceReference *RabbitmqClusterServiceReference `json:"serviceReference,omitempty"`
 }
 
-// Reference to the Kubernetes Secret containing the credentials of the default user.
+// RabbitmqClusterSecretReference reference to the Kubernetes Secret containing the credentials of the default user.
 type RabbitmqClusterSecretReference struct {
 	// Name of the Secret containing the default user credentials
 	Name string `json:"name"`
@@ -43,7 +44,7 @@ type RabbitmqClusterSecretReference struct {
 	Keys map[string]string `json:"keys"`
 }
 
-// Reference to the Kubernetes Service serving the cluster.
+// RabbitmqClusterServiceReference reference to the Kubernetes Service serving the cluster.
 type RabbitmqClusterServiceReference struct {
 	// Name of the Service serving the cluster
 	Name string `json:"name"`
@@ -51,51 +52,36 @@ type RabbitmqClusterServiceReference struct {
 	Namespace string `json:"namespace"`
 }
 
-func (clusterStatus *RabbitmqClusterStatus) SetConditions(resources []runtime.Object) {
-	var oldAllPodsReadyCondition *status.RabbitmqClusterCondition
-	var oldClusterAvailableCondition *status.RabbitmqClusterCondition
-	var oldNoWarningsCondition *status.RabbitmqClusterCondition
-	var oldReconcileCondition *status.RabbitmqClusterCondition
-
-	for _, condition := range clusterStatus.Conditions {
-		switch condition.Type {
-		case status.AllReplicasReady:
-			oldAllPodsReadyCondition = condition.DeepCopy()
-		case status.ClusterAvailable:
-			oldClusterAvailableCondition = condition.DeepCopy()
-		case status.NoWarnings:
-			oldNoWarningsCondition = condition.DeepCopy()
-		case status.ReconcileSuccess:
-			oldReconcileCondition = condition.DeepCopy()
-		}
-	}
-
-	allReplicasReadyCond := status.AllReplicasReadyCondition(resources, oldAllPodsReadyCondition)
-	clusterAvailableCond := status.ClusterAvailableCondition(resources, oldClusterAvailableCondition)
-	noWarningsCond := status.NoWarningsCondition(resources, oldNoWarningsCondition)
-
-	var reconciledCondition status.RabbitmqClusterCondition
-	if oldReconcileCondition != nil {
-		reconciledCondition = *oldReconcileCondition
-	} else {
-		reconciledCondition = status.ReconcileSuccessCondition(corev1.ConditionUnknown, "Initialising", "")
-	}
-
-	clusterStatus.Conditions = []status.RabbitmqClusterCondition{
-		allReplicasReadyCond,
-		clusterAvailableCond,
-		noWarningsCond,
-		reconciledCondition,
-	}
+type RabbitmqClusterCondition struct {
+	// Type indicates the scope of RabbitmqCluster status addressed by the condition.
+	Type RabbitmqClusterConditionType `json:"type"`
+	// True, False, or Unknown
+	Status corev1.ConditionStatus `json:"status"`
+	// The last time this Condition type changed.
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// One word, camel-case reason for current status of the condition.
+	Reason string `json:"reason,omitempty"`
+	// Full text reason for current status of the condition.
+	Message string `json:"message,omitempty"`
 }
 
-func (clusterStatus *RabbitmqClusterStatus) SetCondition(condType status.RabbitmqClusterConditionType,
-	condStatus corev1.ConditionStatus, reason string, messages ...string) {
-	for i := range clusterStatus.Conditions {
-		if clusterStatus.Conditions[i].Type == condType {
-			clusterStatus.Conditions[i].UpdateState(condStatus)
-			clusterStatus.Conditions[i].UpdateReason(reason, messages...)
-			break
-		}
+type RabbitmqClusterConditionType string
+
+const (
+	AllReplicasReady RabbitmqClusterConditionType = "AllReplicasReady"
+	ClusterAvailable RabbitmqClusterConditionType = "ClusterAvailable"
+	NoWarnings       RabbitmqClusterConditionType = "NoWarnings"
+	ReconcileSuccess RabbitmqClusterConditionType = "ReconcileSuccess"
+)
+
+func (condition *RabbitmqClusterCondition) UpdateState(status corev1.ConditionStatus) {
+	if condition.Status != status {
+		condition.LastTransitionTime = metav1.Now()
 	}
+	condition.Status = status
+}
+
+func (condition *RabbitmqClusterCondition) UpdateReason(reason string, messages ...string) {
+	condition.Reason = reason
+	condition.Message = strings.Join(messages, ". ")
 }

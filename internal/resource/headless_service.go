@@ -14,15 +14,12 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-)
 
-const (
-	headlessServiceSuffix = "nodes"
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
+	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
 )
 
 type HeadlessServiceBuilder struct {
@@ -33,42 +30,33 @@ func (builder *RabbitmqResourceBuilder) HeadlessService() *HeadlessServiceBuilde
 	return &HeadlessServiceBuilder{builder}
 }
 
-func (builder *HeadlessServiceBuilder) UpdateMayRequireStsRecreate() bool {
-	return false
-}
-
 func (builder *HeadlessServiceBuilder) Build() (client.Object, error) {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      builder.Instance.ChildResourceName(headlessServiceSuffix),
-			Namespace: builder.Instance.Namespace,
+			Name:        builder.Instance.ChildResourceName(constant.ResourceHeadlessServiceSuffix),
+			Namespace:   builder.Instance.Namespace,
+			Labels:      metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels),
+			Annotations: metadata.ReconcileAndFilterAnnotations(nil, builder.Instance.Annotations),
 		},
 	}, nil
+}
+
+func (builder *HeadlessServiceBuilder) UpdateMayRequireStsRecreate() bool {
+	return false
 }
 
 func (builder *HeadlessServiceBuilder) Update(object client.Object) error {
 	service := object.(*corev1.Service)
 	service.Labels = metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels)
 	service.Annotations = metadata.ReconcileAndFilterAnnotations(service.GetAnnotations(), builder.Instance.Annotations)
+
 	service.Spec = corev1.ServiceSpec{
 		Type:            corev1.ServiceTypeClusterIP,
-		ClusterIP:       "None",
+		ClusterIP:       corev1.ClusterIPNone,
 		SessionAffinity: corev1.ServiceAffinityNone,
 		Selector:        metadata.LabelSelector(builder.Instance.Name),
-		Ports: []corev1.ServicePort{
-			{
-				Protocol:   corev1.ProtocolTCP,
-				Port:       4369,
-				TargetPort: intstr.FromInt32(4369),
-				Name:       "epmd",
-			},
-			{
-				Protocol:   corev1.ProtocolTCP,
-				Port:       25672,
-				TargetPort: intstr.FromInt32(25672),
-				Name:       "cluster-rpc", // aka distribution port
-			},
-		},
+
+		Ports:                    builder.Ports(service.Spec.Ports),
 		PublishNotReadyAddresses: true,
 		IPFamilyPolicy:           builder.Instance.Spec.Service.IPFamilyPolicy,
 	}
@@ -78,4 +66,8 @@ func (builder *HeadlessServiceBuilder) Update(object client.Object) error {
 	}
 
 	return nil
+}
+
+func (builder *HeadlessServiceBuilder) Ports(currPorts []corev1.ServicePort) []corev1.ServicePort {
+	return mergePorts(currPorts, constant.NewPortManager(builder.Instance).HeadlessServicePorts())
 }

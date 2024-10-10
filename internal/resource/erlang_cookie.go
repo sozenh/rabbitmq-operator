@@ -17,13 +17,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
 
-const (
-	erlangCookieName = "erlang-cookie"
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
+	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
 )
 
 type ErlangCookieBuilder struct {
@@ -42,13 +40,13 @@ func (builder *ErlangCookieBuilder) Build() (client.Object, error) {
 
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      builder.Instance.ChildResourceName(erlangCookieName),
-			Namespace: builder.Instance.Namespace,
+			Name:        builder.Instance.ChildResourceName(constant.ResourceErlangCookieSuffix),
+			Namespace:   builder.Instance.Namespace,
+			Labels:      metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels),
+			Annotations: metadata.ReconcileAndFilterAnnotations(nil, builder.Instance.Annotations),
 		},
 		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			".erlang.cookie": []byte(cookie),
-		},
+		Data: map[string][]byte{fileNameErlangCookie: []byte(cookie)},
 	}, nil
 }
 

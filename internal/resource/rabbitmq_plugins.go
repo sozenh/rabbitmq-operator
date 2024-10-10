@@ -8,19 +8,19 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
-	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
+	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
 )
 
 var requiredPlugins = []string{
-	"rabbitmq_peer_discovery_k8s", // required for clustering
-	"rabbitmq_prometheus",         // enforce prometheus metrics
-	"rabbitmq_management",
+	constant.PluginNameKubernetes, // required for clustering
+	constant.PluginNamePrometheus, // enforce prometheus metrics
+	constant.PluginNameManagement,
 }
-
-const PluginsConfigName = "plugins-conf"
 
 type RabbitmqPluginsConfigMapBuilder struct {
 	*RabbitmqResourceBuilder
@@ -33,13 +33,13 @@ func (builder *RabbitmqResourceBuilder) RabbitmqPluginsConfigMap() *RabbitmqPlug
 func (builder *RabbitmqPluginsConfigMapBuilder) Build() (client.Object, error) {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        builder.Instance.ChildResourceName(PluginsConfigName),
+			Name:        builder.Instance.ChildResourceName(constant.ResourcePluginConfigMapSuffix),
 			Namespace:   builder.Instance.Namespace,
 			Labels:      metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels),
 			Annotations: metadata.ReconcileAndFilterAnnotations(nil, builder.Instance.Annotations),
 		},
 		Data: map[string]string{
-			"enabled_plugins": desiredPluginsAsString([]rabbitmqv1beta1.Plugin{}),
+			fileNameRabbitmqPlugins: desiredPluginsAsString([]rabbitmqv1beta1.Plugin{}),
 		},
 	}, nil
 }
@@ -51,10 +51,13 @@ func (builder *RabbitmqPluginsConfigMapBuilder) UpdateMayRequireStsRecreate() bo
 func (builder *RabbitmqPluginsConfigMapBuilder) Update(object client.Object) error {
 	configMap := object.(*corev1.ConfigMap)
 
+	configMap.Labels = metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels)
+	configMap.Annotations = metadata.ReconcileAndFilterAnnotations(configMap.GetAnnotations(), builder.Instance.Annotations)
+
 	if configMap.Data == nil {
 		configMap.Data = make(map[string]string)
 	}
-	configMap.Data["enabled_plugins"] = desiredPluginsAsString(builder.Instance.Spec.Rabbitmq.AdditionalPlugins)
+	configMap.Data[fileNameRabbitmqPlugins] = desiredPluginsAsString(builder.Instance.Spec.Rabbitmq.AdditionalPlugins)
 
 	if err := controllerutil.SetControllerReference(builder.Instance, configMap, builder.Scheme); err != nil {
 		return fmt.Errorf("failed setting controller reference: %w", err)

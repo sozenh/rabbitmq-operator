@@ -183,10 +183,43 @@ More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-
 |===
 
 
+[id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclustercondition"]
+==== RabbitmqClusterCondition 
+
+
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterstatus[$$RabbitmqClusterStatus$$]
+****
+
+[cols="25a,75a", options="header"]
+|===
+| Field | Description
+| *`type`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterconditiontype[$$RabbitmqClusterConditionType$$]__ | Type indicates the scope of RabbitmqCluster status addressed by the condition.
+| *`status`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#conditionstatus-v1-core[$$ConditionStatus$$]__ | True, False, or Unknown
+| *`reason`* __string__ | One word, camel-case reason for current status of the condition.
+| *`message`* __string__ | Full text reason for current status of the condition.
+| *`lastTransitionTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#time-v1-meta[$$Time$$]__ | The last time this Condition type changed.
+|===
+
+
+[id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterconditiontype"]
+==== RabbitmqClusterConditionType (string) 
+
+
+
+.Appears In:
+****
+- xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclustercondition[$$RabbitmqClusterCondition$$]
+****
+
+
+
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterconfigurationspec"]
 ==== RabbitmqClusterConfigurationSpec 
 
-RabbitMQ-related configuration.
+RabbitmqClusterConfigurationSpec spec rabbitMQ-related configuration.
 
 .Appears In:
 ****
@@ -196,23 +229,24 @@ RabbitMQ-related configuration.
 [cols="25a,75a", options="header"]
 |===
 | Field | Description
-| *`additionalPlugins`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-plugin[$$Plugin$$] array__ | List of plugins to enable in addition to essential plugins: rabbitmq_management, rabbitmq_prometheus, and rabbitmq_peer_discovery_k8s.
+| *`advancedConfig`* __string__ | Specify any rabbitmq advanced.config configurations to apply to the cluster.
+For more information on advanced config, see https://www.rabbitmq.com/configure.html#advanced-config-file
+| *`envConfig`* __string__ | Modify to add to the rabbitmq-env.conf file.
+Modifying this property on an existing RabbitmqCluster will trigger a StatefulSet rolling restart and will cause rabbitmq downtime.
+For more information on env config, see https://www.rabbitmq.com/man/rabbitmq-env.conf.5.html
 | *`additionalConfig`* __string__ | Modify to add to the rabbitmq.conf file in addition to default configurations set by the operator.
 Modifying this property on an existing RabbitmqCluster will trigger a StatefulSet rolling restart and will cause rabbitmq downtime.
 For more information on this config, see https://www.rabbitmq.com/configure.html#config-file
-| *`advancedConfig`* __string__ | Specify any rabbitmq advanced.config configurations to apply to the cluster.
-For more information on advanced config, see https://www.rabbitmq.com/configure.html#advanced-config-file
-| *`envConfig`* __string__ | Modify to add to the rabbitmq-env.conf file. Modifying this property on an existing RabbitmqCluster will trigger a StatefulSet rolling restart and will cause rabbitmq downtime.
-For more information on env config, see https://www.rabbitmq.com/man/rabbitmq-env.conf.5.html
 | *`erlangInetConfig`* __string__ | Erlang Inet configuration to apply to the Erlang VM running rabbit.
 See also: https://www.erlang.org/doc/apps/erts/inet_cfg.html
+| *`additionalPlugins`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-plugin[$$Plugin$$] array__ | List of plugins to enable in addition to essential plugins: rabbitmq_management, rabbitmq_prometheus, and rabbitmq_peer_discovery_k8s.
 |===
 
 
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterdefaultuser"]
 ==== RabbitmqClusterDefaultUser 
 
-Contains references to resources created with the RabbitmqCluster resource.
+RabbitmqClusterDefaultUser contains references to resources created with the RabbitmqCluster resource.
 
 .Appears In:
 ****
@@ -258,7 +292,7 @@ More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusteroverridespec"]
 ==== RabbitmqClusterOverrideSpec 
 
-Provides the ability to override the generated manifest of several child resources.
+RabbitmqClusterOverrideSpec provides the ability to override the generated manifest of several child resources.
 
 .Appears In:
 ****
@@ -268,15 +302,15 @@ Provides the ability to override the generated manifest of several child resourc
 [cols="25a,75a", options="header"]
 |===
 | Field | Description
+| *`service`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-service[$$Service$$]__ | Override configuration for the RabbitMQ Service.
 | *`statefulSet`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-statefulset[$$StatefulSet$$]__ | Override configuration for the RabbitMQ StatefulSet.
-| *`service`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-service[$$Service$$]__ | Override configuration for the Service created to serve traffic to the cluster.
 |===
 
 
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterpersistencespec"]
 ==== RabbitmqClusterPersistenceSpec 
 
-The settings for the persistent storage desired for each Pod in the RabbitmqCluster.
+RabbitmqClusterPersistenceSpec spec the settings for the persistent storage desired for each Pod in the RabbitmqCluster.
 
 .Appears In:
 ****
@@ -286,17 +320,17 @@ The settings for the persistent storage desired for each Pod in the RabbitmqClus
 [cols="25a,75a", options="header"]
 |===
 | Field | Description
-| *`storageClassName`* __string__ | The name of the StorageClass to claim a PersistentVolume from.
-| *`storage`* __xref:{anchor_prefix}-k8s-io-apimachinery-pkg-api-resource-quantity[$$Quantity$$]__ | The requested size of the persistent volume attached to each Pod in the RabbitmqCluster.
+| *`storage`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#quantity-resource-api[$$Quantity$$]__ | The requested size of the persistent volume attached to each Pod in the RabbitmqCluster.
 The format of this field matches that defined by kubernetes/apimachinery.
 See https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource#Quantity for more info on the format of this field.
+| *`storageClassName`* __string__ | The name of the StorageClass to claim a PersistentVolume from.
 |===
 
 
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclustersecretreference"]
 ==== RabbitmqClusterSecretReference 
 
-Reference to the Kubernetes Secret containing the credentials of the default user.
+RabbitmqClusterSecretReference reference to the Kubernetes Secret containing the credentials of the default user.
 
 .Appears In:
 ****
@@ -315,7 +349,7 @@ Reference to the Kubernetes Secret containing the credentials of the default use
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterservicereference"]
 ==== RabbitmqClusterServiceReference 
 
-Reference to the Kubernetes Service serving the cluster.
+RabbitmqClusterServiceReference reference to the Kubernetes Service serving the cluster.
 
 .Appears In:
 ****
@@ -333,7 +367,7 @@ Reference to the Kubernetes Service serving the cluster.
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterservicespec"]
 ==== RabbitmqClusterServiceSpec 
 
-Settable attributes for the Service resource.
+RabbitmqClusterServiceSpec settable attributes for the Service resource.
 
 .Appears In:
 ****
@@ -354,7 +388,7 @@ See also: https://pkg.go.dev/k8s.io/api/core/v1#IPFamilyPolicy
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterspec"]
 ==== RabbitmqClusterSpec 
 
-Spec is the desired state of the RabbitmqCluster Custom Resource.
+RabbitmqClusterSpec is the desired state of the RabbitmqCluster Custom Resource.
 
 .Appears In:
 ****
@@ -364,27 +398,23 @@ Spec is the desired state of the RabbitmqCluster Custom Resource.
 [cols="25a,75a", options="header"]
 |===
 | Field | Description
-| *`replicas`* __integer__ | Replicas is the number of nodes in the RabbitMQ cluster. Each node is deployed as a Replica in a StatefulSet. Only 1, 3, 5 replicas clusters are tested.
+| *`replicas`* __integer__ | Replicas is the number of nodes in the RabbitMQ cluster.
+Each node is deployed as a Replica in a StatefulSet. Only 1, 3, 5 replicas clusters are tested.
 This value should be an odd number to ensure the resultant cluster can establish exactly one quorum of nodes
 in the event of a fragmenting network partition.
+| *`tls`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-tlsspec[$$TLSSpec$$]__ | TLS-related configuration for the RabbitMQ cluster.
+| *`rabbitmq`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterconfigurationspec[$$RabbitmqClusterConfigurationSpec$$]__ | Configuration options for RabbitMQ Pods created in the cluster.
 | *`image`* __string__ | Image is the name of the RabbitMQ docker image to use for RabbitMQ nodes in the RabbitmqCluster.
 Must be provided together with ImagePullSecrets in order to use an image in a private registry.
 | *`imagePullSecrets`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#localobjectreference-v1-core[$$LocalObjectReference$$] array__ | List of Secret resource containing access credentials to the registry for the RabbitMQ image. Required if the docker registry is private.
-| *`service`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterservicespec[$$RabbitmqClusterServiceSpec$$]__ | The desired state of the Kubernetes Service to create for the cluster.
-| *`persistence`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterpersistencespec[$$RabbitmqClusterPersistenceSpec$$]__ | The desired persistent storage configuration for each Pod in the cluster.
-| *`resources`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#resourcerequirements-v1-core[$$ResourceRequirements$$]__ | The desired compute resource requirements of Pods in the cluster.
 | *`affinity`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#affinity-v1-core[$$Affinity$$]__ | Affinity scheduling rules to be applied on created Pods.
 | *`tolerations`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#toleration-v1-core[$$Toleration$$] array__ | Tolerations is the list of Toleration resources attached to each Pod in the RabbitmqCluster.
-| *`rabbitmq`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterconfigurationspec[$$RabbitmqClusterConfigurationSpec$$]__ | Configuration options for RabbitMQ Pods created in the cluster.
-| *`tls`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-tlsspec[$$TLSSpec$$]__ | TLS-related configuration for the RabbitMQ cluster.
+| *`resources`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#resourcerequirements-v1-core[$$ResourceRequirements$$]__ | The desired compute resource requirements of Pods in the cluster.
+| *`service`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterservicespec[$$RabbitmqClusterServiceSpec$$]__ | The desired state of the Kubernetes Service to create for the cluster.
+| *`persistence`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterpersistencespec[$$RabbitmqClusterPersistenceSpec$$]__ | The desired persistent storage configuration for each Pod in the cluster.
+| *`secretBackend`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-secretbackend[$$SecretBackend$$]__ | Secret backend configuration for the RabbitmqCluster.
+Enables to fetch default user credentials and certificates from K8s external secret stores.
 | *`override`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusteroverridespec[$$RabbitmqClusterOverrideSpec$$]__ | Provides the ability to override the generated manifest of several child resources.
-| *`skipPostDeploySteps`* __boolean__ | If unset, or set to false, the cluster will run `rabbitmq-queues rebalance all` whenever the cluster is updated.
-Set to true to prevent the operator rebalancing queue leaders after a cluster update.
-Has no effect if the cluster only consists of one node.
-For more information, see https://www.rabbitmq.com/rabbitmq-queues.8.html#rebalance
-| *`terminationGracePeriodSeconds`* __integer__ | TerminationGracePeriodSeconds is the timeout that each rabbitmqcluster pod will have to terminate gracefully.
-It defaults to 604800 seconds ( a week long) to ensure that the container preStop lifecycle hook can finish running.
-For more information, see: https://github.com/rabbitmq/cluster-operator/blob/main/docs/design/20200520-graceful-pod-termination.md
 | *`delayStartSeconds`* __integer__ | DelayStartSeconds is the time the init container (`setup-container`) will sleep before terminating.
 This effectively delays the time between starting the Pod and starting the `rabbitmq` container.
 RabbitMQ relies on up-to-date DNS entries early during peer discovery.
@@ -392,15 +422,20 @@ The purpose of this artificial delay is to ensure that DNS entries are up-to-dat
 For more information, see https://github.com/kubernetes/kubernetes/issues/92559
 If your Kubernetes DNS backend is configured with a low DNS cache value or publishes not ready addresses
 promptly, you can decrase this value or set it to 0.
-| *`secretBackend`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-secretbackend[$$SecretBackend$$]__ | Secret backend configuration for the RabbitmqCluster.
-Enables to fetch default user credentials and certificates from K8s external secret stores.
+| *`skipPostDeploySteps`* __boolean__ | If unset, or set to false, the cluster will run `rabbitmq-queues rebalance all` whenever the cluster is updated.
+Set to true to prevent the operator rebalancing queue leaders after a cluster update.
+Has no effect if the cluster only consists of one node.
+For more information, see https://www.rabbitmq.com/rabbitmq-queues.8.html#rebalance
+| *`terminationGracePeriodSeconds`* __integer__ | TerminationGracePeriodSeconds is the timeout that each rabbitmqcluster pod will have to terminate gracefully.
+It defaults to 604800 seconds ( a week long) to ensure that the container preStop lifecycle hook can finish running.
+For more information, see: https://github.com/rabbitmq/cluster-operator/blob/main/docs/design/20200520-graceful-pod-termination.md
 |===
 
 
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterstatus"]
 ==== RabbitmqClusterStatus 
 
-Status presents the observed state of RabbitmqCluster
+RabbitmqClusterStatus presents the observed state of RabbitmqCluster
 
 .Appears In:
 ****
@@ -410,7 +445,7 @@ Status presents the observed state of RabbitmqCluster
 [cols="25a,75a", options="header"]
 |===
 | Field | Description
-| *`conditions`* __RabbitmqClusterCondition array__ | Set of Conditions describing the current state of the RabbitmqCluster
+| *`conditions`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclustercondition[$$RabbitmqClusterCondition$$] array__ | Set of Conditions describing the current state of the RabbitmqCluster
 | *`defaultUser`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterdefaultuser[$$RabbitmqClusterDefaultUser$$]__ | Identifying information on internal resources
 | *`binding`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#localobjectreference-v1-core[$$LocalObjectReference$$]__ | Binding exposes a secret containing the binding information for this
 RabbitmqCluster. It implements the service binding Provisioned Service
@@ -444,7 +479,7 @@ If not configured, K8s Secrets will be used.
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-service"]
 ==== Service 
 
-Override configuration for the Service created to serve traffic to the cluster.
+Service override configuration for the Service created to serve traffic to the cluster.
 Allows for the manifest of the created Service to be overwritten with custom configuration.
 
 .Appears In:
@@ -455,17 +490,16 @@ Allows for the manifest of the created Service to be overwritten with custom con
 [cols="25a,75a", options="header"]
 |===
 | Field | Description
+| *`spec`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#servicespec-v1-core[$$ServiceSpec$$]__ | Spec defines the behavior of a Service.
 | *`metadata`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-embeddedlabelsannotations[$$EmbeddedLabelsAnnotations$$]__ | Refer to Kubernetes API documentation for fields of `metadata`.
 
-| *`spec`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#servicespec-v1-core[$$ServiceSpec$$]__ | Spec defines the behavior of a Service.
-https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
 |===
 
 
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-statefulset"]
 ==== StatefulSet 
 
-Override configuration for the RabbitMQ StatefulSet.
+StatefulSet override configuration for the RabbitMQ StatefulSet.
 Allows for the manifest of the created StatefulSet to be overwritten with custom configuration.
 
 .Appears In:
@@ -476,9 +510,9 @@ Allows for the manifest of the created StatefulSet to be overwritten with custom
 [cols="25a,75a", options="header"]
 |===
 | Field | Description
+| *`spec`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-statefulsetspec[$$StatefulSetSpec$$]__ | Spec defines the desired identities of pods in this set.
 | *`metadata`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-embeddedlabelsannotations[$$EmbeddedLabelsAnnotations$$]__ | Refer to Kubernetes API documentation for fields of `metadata`.
 
-| *`spec`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-statefulsetspec[$$StatefulSetSpec$$]__ | Spec defines the desired identities of pods in this set.
 |===
 
 
@@ -540,7 +574,7 @@ created from the StatefulSet VolumeClaimTemplates.
 [id="{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-tlsspec"]
 ==== TLSSpec 
 
-Allows for the configuration of TLS certificates to be used by RabbitMQ. Also allows for non-TLS traffic to be disabled.
+TLSSpec allows for the configuration of TLS certificates to be used by RabbitMQ. Also allows for non-TLS traffic to be disabled.
 
 .Appears In:
 ****

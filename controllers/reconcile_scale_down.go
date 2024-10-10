@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 	"github.com/rabbitmq/cluster-operator/v2/internal/status"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 )
 
 // cluster scale down not supported
@@ -24,7 +26,7 @@ func (r *RabbitmqClusterReconciler) scaleDown(ctx context.Context, cluster *v1be
 		reason := "UnsupportedOperation"
 		logger.Error(errors.New(reason), msg)
 		r.Recorder.Event(cluster, corev1.EventTypeWarning, reason, msg)
-		cluster.Status.SetCondition(status.ReconcileSuccess, corev1.ConditionFalse, reason, msg)
+		status.SetCondition(&cluster.Status, v1beta1.ReconcileSuccess, corev1.ConditionFalse, reason, msg)
 		if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
 			logger.Error(statusErr, "Failed to update ReconcileSuccess condition state")
 		}

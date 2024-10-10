@@ -17,10 +17,12 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
 	"gopkg.in/ini.v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
+	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
 
 	"github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
@@ -60,17 +62,19 @@ func (builder *DefaultUserSecretBuilder) Build() (client.Object, error) {
 	// See: https://k8s-service-bindings.github.io/spec/#provisioned-service
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      builder.Instance.ChildResourceName(DefaultUserSecretName),
-			Namespace: builder.Instance.Namespace,
+			Name:        builder.Instance.ChildResourceName(DefaultUserSecretName),
+			Namespace:   builder.Instance.Namespace,
+			Labels:      metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels),
+			Annotations: metadata.ReconcileAndFilterAnnotations(nil, builder.Instance.Annotations),
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
-			"username":          []byte(username),
-			"password":          []byte(password),
-			"default_user.conf": defaultUserConf,
-			"provider":          []byte(bindingProvider),
-			"type":              []byte(bindingType),
-			"host":              []byte(builder.Instance.ServiceSubDomain()),
+			"username":                       []byte(username),
+			"password":                       []byte(password),
+			fileNameRabbitmqConfdDefaultUser: defaultUserConf,
+			"type":                           []byte(bindingType),
+			"provider":                       []byte(bindingProvider),
+			"host":                           []byte(builder.Instance.ServiceSubDomain()),
 		},
 	}
 	builder.updatePorts(secret)
@@ -87,6 +91,7 @@ func (builder *DefaultUserSecretBuilder) Update(object client.Object) error {
 	secret := object.(*corev1.Secret)
 	secret.Labels = metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels)
 	secret.Annotations = metadata.ReconcileAndFilterAnnotations(secret.GetAnnotations(), builder.Instance.Annotations)
+
 	builder.updatePorts(secret)
 	builder.updateConnectionString(secret)
 
@@ -98,37 +103,36 @@ func (builder *DefaultUserSecretBuilder) Update(object client.Object) error {
 }
 
 func (builder *DefaultUserSecretBuilder) updatePorts(secret *corev1.Secret) {
-	const (
-		AMQPPort  = "5672"
-		AMQPSPort = "5671"
-	)
+	AMQPPort := fmt.Sprintf("%d", constant.DefaultPortAmqp)
+	AMQPSPort := fmt.Sprintf("%d", constant.DefaultPortAmqps)
+
 	portNames := map[v1beta1.Plugin]string{
-		"rabbitmq_mqtt":      "mqtt-port",
-		"rabbitmq_stomp":     "stomp-port",
-		"rabbitmq_stream":    "stream-port",
-		"rabbitmq_web_mqtt":  "web-mqtt-port",
-		"rabbitmq_web_stomp": "web-stomp-port",
-	}
-	TLSPort := map[string]string{
-		"mqtt-port":      "8883",
-		"stomp-port":     "61614",
-		"stream-port":    "5551",
-		"web-mqtt-port":  "15676",
-		"web-stomp-port": "15673",
+		constant.PluginNameMqtt:     "mqtt-port",
+		constant.PluginNameStomp:    "stomp-port",
+		constant.PluginNameStream:   "stream-port",
+		constant.PluginNameWebMqtt:  "web-mqtt-port",
+		constant.PluginNameWebStomp: "web-stomp-port",
 	}
 	port := map[string]string{
-		"mqtt-port":      "1883",
-		"stomp-port":     "61613",
-		"stream-port":    "5552",
-		"web-mqtt-port":  "15675",
-		"web-stomp-port": "15674",
+		"mqtt-port":      fmt.Sprintf("%d", constant.DefaultPortMqtt),
+		"stomp-port":     fmt.Sprintf("%d", constant.DefaultPortStomp),
+		"stream-port":    fmt.Sprintf("%d", constant.DefaultPortStream),
+		"web-mqtt-port":  fmt.Sprintf("%d", constant.DefaultPortWebMqtt),
+		"web-stomp-port": fmt.Sprintf("%d", constant.DefaultPortWebStomp),
+	}
+	TLSPort := map[string]string{
+		"mqtt-port":      fmt.Sprintf("%d", constant.DefaultPortMqtts),
+		"stomp-port":     fmt.Sprintf("%d", constant.DefaultPortStomps),
+		"stream-port":    fmt.Sprintf("%d", constant.DefaultPortStreams),
+		"web-mqtt-port":  fmt.Sprintf("%d", constant.DefaultPortWebMqttTls),
+		"web-stomp-port": fmt.Sprintf("%d", constant.DefaultPortWebStompTls),
 	}
 
-	if builder.Instance.Spec.TLS.SecretName != "" {
+	if builder.Instance.SecretTLSEnabled() {
 		secret.Data["port"] = []byte(AMQPSPort)
 
 		for plugin, portName := range portNames {
-			if builder.pluginEnabled(plugin) {
+			if builder.Instance.AdditionalPluginEnabled(plugin) {
 				secret.Data[portName] = []byte(TLSPort[portName])
 			} else {
 				delete(secret.Data, portName)
@@ -138,7 +142,7 @@ func (builder *DefaultUserSecretBuilder) updatePorts(secret *corev1.Secret) {
 		secret.Data["port"] = []byte(AMQPPort)
 
 		for plugin, portName := range portNames {
-			if builder.pluginEnabled(plugin) {
+			if builder.Instance.AdditionalPluginEnabled(plugin) {
 				secret.Data[portName] = []byte(port[portName])
 			} else {
 				delete(secret.Data, portName)
@@ -148,7 +152,7 @@ func (builder *DefaultUserSecretBuilder) updatePorts(secret *corev1.Secret) {
 }
 
 func (builder *DefaultUserSecretBuilder) updateConnectionString(secret *corev1.Secret) {
-	if builder.Instance.Spec.TLS.SecretName != "" {
+	if builder.Instance.SecretTLSEnabled() {
 		secret.Data["connection_string"] = []byte(fmt.Sprintf("amqps://%s:%s@%s:%s/", secret.Data["username"], secret.Data["password"], secret.Data["host"], secret.Data["port"]))
 	} else {
 		secret.Data["connection_string"] = []byte(fmt.Sprintf("amqp://%s:%s@%s:%s/", secret.Data["username"], secret.Data["password"], secret.Data["host"], secret.Data["port"]))
@@ -165,15 +169,6 @@ func generateUsername(l int) (string, error) {
 
 	encodedSlice := []byte(encoded)
 	return string(append([]byte(usernamePrefix), encodedSlice[0:len(encodedSlice)-len(usernamePrefix)]...)), nil
-}
-
-func (builder *DefaultUserSecretBuilder) pluginEnabled(plugin v1beta1.Plugin) bool {
-	for _, value := range builder.Instance.Spec.Rabbitmq.AdditionalPlugins {
-		if value == plugin {
-			return true
-		}
-	}
-	return false
 }
 
 func generateDefaultUserConf(username, password string) ([]byte, error) {
