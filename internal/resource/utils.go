@@ -105,8 +105,8 @@ func mergePorts(currPorts, nextPorts []corev1.ServicePort) []corev1.ServicePort 
 		currIndex, found := currMap[next.Name]
 		if found {
 			currPorts[currIndex].Port = next.Port
-			currPorts[currIndex].NodePort = next.NodePort
 			currPorts[currIndex].TargetPort = next.TargetPort
+			currPorts[currIndex].Protocol = next.Protocol
 		} else {
 			currMap[next.Name] = len(currPorts)
 			currPorts = append(currPorts, nextPorts[index])
@@ -309,9 +309,9 @@ func applyStsOverride(instance *rabbitmqv1beta1.RabbitmqCluster, scheme *runtime
 		}
 	}
 
-	if stsOverride.Spec.PersistentVolumeClaimRetentionPolicy != nil {
-		sts.Spec.PersistentVolumeClaimRetentionPolicy = stsOverride.Spec.PersistentVolumeClaimRetentionPolicy
-	}
+	//if stsOverride.Spec.PersistentVolumeClaimRetentionPolicy != nil {
+	//	sts.Spec.PersistentVolumeClaimRetentionPolicy = stsOverride.Spec.PersistentVolumeClaimRetentionPolicy
+	//}
 
 	if stsOverride.Spec.Template == nil {
 		return nil

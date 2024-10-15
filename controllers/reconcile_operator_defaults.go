@@ -2,20 +2,21 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	clientretry "k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/controllers/result"
 )
 
 // reconcileOperatorDefaults updates current rabbitmqCluster with operator defaults from the Reconciler
 // it handles RabbitMQ image, imagePullSecrets, and user updater image
-func (r *RabbitmqClusterReconciler) reconcileOperatorDefaults(ctx context.Context, rabbitmqCluster *rabbitmqv1beta1.RabbitmqCluster) (time.Duration, error) {
+func (r *RabbitmqClusterReconciler) reconcileOperatorDefaults(
+	ctx context.Context,
+	rabbitmqCluster *rabbitmqv1beta1.RabbitmqCluster) result.ReconcileResult {
 	updateType := ""
 	// image will be updated image isn't set yet or the image controlled by the operator (experimental).
 	if r.ControlRabbitmqImage ||
@@ -33,34 +34,35 @@ func (r *RabbitmqClusterReconciler) reconcileOperatorDefaults(ctx context.Contex
 	}
 
 	if rabbitmqCluster.Spec.ImagePullSecrets == nil {
-		updateType += " imagePullSecret "
 		// split the comma separated list of default image pull secrets from
 		// the 'DEFAULT_IMAGE_PULL_SECRETS' env var, but ignore empty strings.
 		for _, reference := range strings.Split(r.DefaultImagePullSecrets, ",") {
 			if len(reference) > 0 {
+				updateType += " imagePullSecret "
 				rabbitmqCluster.Spec.ImagePullSecrets = append(rabbitmqCluster.Spec.ImagePullSecrets, corev1.LocalObjectReference{Name: reference})
 			}
 		}
 	}
 
 	if updateType == "" {
-		return 0, nil
+		return result.Continue()
 	}
 	return r.updateRabbitmqCluster(ctx, rabbitmqCluster, updateType)
 }
 
 // updateRabbitmqCluster updates a RabbitmqCluster with the given definition
 // it returns a 2 seconds requeue request if update failed due to conflict error
-func (r *RabbitmqClusterReconciler) updateRabbitmqCluster(ctx context.Context, rabbitmqCluster *rabbitmqv1beta1.RabbitmqCluster, updateType string) (time.Duration, error) {
+func (r *RabbitmqClusterReconciler) updateRabbitmqCluster(
+	ctx context.Context, rmq *rabbitmqv1beta1.RabbitmqCluster, updateType string) result.ReconcileResult {
 	logger := ctrl.LoggerFrom(ctx)
-	if err := r.Update(ctx, rabbitmqCluster); err != nil {
-		if k8serrors.IsConflict(err) {
-			logger.Info(
-				fmt.Sprintf("failed to update %s because of conflict; requeueing...", updateType),
-				"namespace", rabbitmqCluster.Namespace, "name", rabbitmqCluster.Name)
-			return 2 * time.Second, nil
-		}
-		return 0, err
+
+	logger.Info("update RabbitmqCluster", "updateType", updateType)
+	if err := clientretry.RetryOnConflict(
+		clientretry.DefaultRetry, func() error { return r.Update(ctx, rmq) },
+	); err != nil {
+		logger.Error(err, "failed to update RabbitmqCluster", "updateType", updateType)
+		return result.Error(err)
 	}
-	return 0, nil
+
+	return result.Done()
 }

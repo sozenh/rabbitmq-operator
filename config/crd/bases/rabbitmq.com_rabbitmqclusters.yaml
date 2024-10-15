@@ -957,6 +957,8 @@ spec:
                   format: int32
                   minimum: 0
                   type: integer
+                disable:
+                  type: boolean
                 image:
                   description: |-
                     Image is the name of the RabbitMQ docker image to use for RabbitMQ nodes in the RabbitmqCluster.
@@ -1110,13 +1112,6 @@ spec:
                             minReadySeconds:
                               format: int32
                               type: integer
-                            persistentVolumeClaimRetentionPolicy:
-                              properties:
-                                whenDeleted:
-                                  type: string
-                                whenScaled:
-                                  type: string
-                              type: object
                             podManagementPolicy:
                               type: string
                             replicas:
@@ -5084,15 +5079,6 @@ spec:
                         type: string
                       description: Annotations to add to the Service.
                       type: object
-                    ipFamilyPolicy:
-                      description: |-
-                        IPFamilyPolicy represents the dual-stack-ness requested or required by a Service
-                        See also: https://pkg.go.dev/k8s.io/api/core/v1#IPFamilyPolicy
-                      enum:
-                        - SingleStack
-                        - PreferDualStack
-                        - RequireDualStack
-                      type: string
                     type:
                       default: ClusterIP
                       description: |-
@@ -5273,8 +5259,12 @@ spec:
                     RabbitmqCluster's generation, which is updated on mutation by the API Server.
                   format: int64
                   type: integer
+                replicas:
+                  format: int32
+                  type: integer
               required:
                 - conditions
+                - replicas
               type: object
           type: object
       served: true

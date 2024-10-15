@@ -10,6 +10,7 @@ package v1beta1
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -45,6 +46,9 @@ type RabbitmqCluster struct {
 
 // RabbitmqClusterSpec is the desired state of the RabbitmqCluster Custom Resource.
 type RabbitmqClusterSpec struct {
+	// +optional
+	Disable bool `json:"disable,omitempty"`
+
 	// Replicas is the number of nodes in the RabbitMQ cluster.
 	// Each node is deployed as a Replica in a StatefulSet. Only 1, 3, 5 replicas clusters are tested.
 	// This value should be an odd number to ensure the resultant cluster can establish exactly one quorum of nodes
@@ -129,7 +133,7 @@ type RabbitmqClusterServiceSpec struct {
 	// IPFamilyPolicy represents the dual-stack-ness requested or required by a Service
 	// See also: https://pkg.go.dev/k8s.io/api/core/v1#IPFamilyPolicy
 	// +kubebuilder:validation:Enum=SingleStack;PreferDualStack;RequireDualStack
-	IPFamilyPolicy *corev1.IPFamilyPolicyType `json:"ipFamilyPolicy,omitempty"`
+	// IPFamilyPolicy *corev1.IPFamilyPolicyType `json:"ipFamilyPolicy,omitempty"`
 }
 
 // RabbitmqClusterPersistenceSpec spec the settings for the persistent storage desired for each Pod in the RabbitmqCluster.
@@ -334,7 +338,7 @@ type StatefulSetSpec struct {
 	// StatefulSetPersistentVolumeClaimRetentionPolicy describes the policy used for PVCs
 	// created from the StatefulSet VolumeClaimTemplates.
 	// +optional
-	PersistentVolumeClaimRetentionPolicy *appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy `json:"persistentVolumeClaimRetentionPolicy,omitempty" protobuf:"bytes,10,opt,name=persistentVolumeClaimRetentionPolicy"`
+	// PersistentVolumeClaimRetentionPolicy *appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy `json:"persistentVolumeClaimRetentionPolicy,omitempty" protobuf:"bytes,10,opt,name=persistentVolumeClaimRetentionPolicy"`
 }
 
 // PodTemplateSpec is an embedded version of k8s.io/api/core/v1.PodTemplateSpec.
@@ -450,6 +454,15 @@ func (cluster *RabbitmqCluster) ServiceSubDomain() string {
 func (cluster *RabbitmqCluster) ChildResourceName(name string) string {
 	return strings.TrimSuffix(strings.Join([]string{cluster.Name, name}, "-"), "-")
 }
+func (cluster *RabbitmqCluster) PVCName(name string, replica int, pvc string) string {
+	return strings.Join([]string{pvc, cluster.PodName(name, replica)}, "-")
+}
+func (cluster *RabbitmqCluster) PodName(name string, replica int) string {
+	return strings.TrimSuffix(strings.Join([]string{cluster.StatefulsetName(name, replica), "0"}, "-"), "-")
+}
+func (cluster *RabbitmqCluster) StatefulsetName(name string, replica int) string {
+	return strings.TrimSuffix(strings.Join([]string{cluster.ChildResourceName(name), strconv.Itoa(replica)}, "-"), "-")
+}
 
 func (cluster *RabbitmqCluster) MemoryLimited() bool {
 	return cluster.Spec.Resources != nil && cluster.Spec.Resources.Limits != nil && !cluster.Spec.Resources.Limits.Memory().IsZero()
@@ -507,4 +520,8 @@ func (cluster *RabbitmqCluster) VaultTLSEnabled() bool {
 }
 func (cluster *RabbitmqCluster) VaultDefaultUserSecretEnabled() bool {
 	return cluster.VaultEnabled() && cluster.Spec.SecretBackend.Vault.DefaultUserSecretEnabled()
+}
+
+func init() {
+	SchemeBuilder.Register(&RabbitmqCluster{}, &RabbitmqClusterList{})
 }

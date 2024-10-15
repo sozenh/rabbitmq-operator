@@ -13,8 +13,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
-	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
@@ -24,6 +22,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	defaultscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 )
 
 var _ = Describe("StatefulSet", func() {
@@ -45,7 +46,7 @@ var _ = Describe("StatefulSet", func() {
 				Instance: &instance,
 				Scheme:   scheme,
 			}
-			stsBuilder = builder.StatefulSet()
+			stsBuilder = builder.StatefulSet(0)
 		})
 
 		It("sets the name and namespace", func() {
@@ -229,7 +230,7 @@ var _ = Describe("StatefulSet", func() {
 				Scheme:   scheme,
 			}
 
-			stsBuilder = builder.StatefulSet()
+			stsBuilder = builder.StatefulSet(0)
 
 			statefulSet = &appsv1.StatefulSet{
 				ObjectMeta: metav1.ObjectMeta{
@@ -264,7 +265,7 @@ var _ = Describe("StatefulSet", func() {
 		})
 
 		It("sets the owner reference", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			Expect(len(statefulSet.OwnerReferences)).To(Equal(1))
@@ -272,7 +273,7 @@ var _ = Describe("StatefulSet", func() {
 		})
 
 		It("specifies the upgrade policy", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 			updateStrategy := appsv1.StatefulSetUpdateStrategy{
 				RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
@@ -343,13 +344,13 @@ var _ = Describe("StatefulSet", func() {
 			})
 
 			It("has the labels from the instance on the statefulset", func() {
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 				testLabels(statefulSet.Labels)
 			})
 
 			It("adds default labels to pods but does not populate labels from the instance onto pods", func() {
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 				Expect(statefulSet.Spec.Template.ObjectMeta.Labels).To(SatisfyAll(
@@ -766,14 +767,14 @@ var _ = Describe("StatefulSet", func() {
 		})
 
 		It("sets replicas", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			Expect(*statefulSet.Spec.Replicas).To(Equal(int32(1)))
 		})
 
 		It("sets a TopologySpreadConstraint", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			Expect(statefulSet.Spec.Template.Spec.TopologySpreadConstraints).To(ConsistOf(
@@ -790,7 +791,7 @@ var _ = Describe("StatefulSet", func() {
 		})
 
 		It("has resources requirements on the init container", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			resources := statefulSet.Spec.Template.Spec.InitContainers[0].Resources
@@ -801,7 +802,7 @@ var _ = Describe("StatefulSet", func() {
 		})
 
 		It("exposes required Container Ports", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			requiredContainerPorts := []int32{4369, 5672, 15672, 15692}
@@ -838,7 +839,7 @@ var _ = Describe("StatefulSet", func() {
 		)
 
 		It("uses required Environment Variables", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			requiredEnvVariables := []corev1.EnvVar{
@@ -1158,7 +1159,7 @@ default_pass = {{ .Data.data.password }}
 		Context("Rabbitmq container volume mounts", func() {
 			DescribeTable("Volume mounts depending on spec configuration and '/var/lib/rabbitmq/' always mounts before '/var/lib/rabbitmq/mnesia/' ",
 				func(rabbitmqEnv, advancedConfig, erlInet string) {
-					stsBuilder := builder.StatefulSet()
+					stsBuilder := builder.StatefulSet(0)
 					stsBuilder.Instance.Spec.Rabbitmq.EnvConfig = rabbitmqEnv
 					stsBuilder.Instance.Spec.Rabbitmq.AdvancedConfig = advancedConfig
 					stsBuilder.Instance.Spec.Rabbitmq.ErlangInetConfig = erlInet
@@ -1213,7 +1214,7 @@ default_pass = {{ .Data.data.password }}
 
 		Context("Volumes", func() {
 			DescribeTable("Volumes based on user configuration", func(rabbitmqEnv, advancedConfig, erlInetRc string) {
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				stsBuilder.Instance.Spec.Rabbitmq.EnvConfig = rabbitmqEnv
 				stsBuilder.Instance.Spec.Rabbitmq.AdvancedConfig = advancedConfig
 				stsBuilder.Instance.Spec.Rabbitmq.ErlangInetConfig = erlInetRc
@@ -1333,7 +1334,7 @@ default_pass = {{ .Data.data.password }}
 			It("defines an emptyDir volume when storage == 0", func() {
 				zero, _ := k8sresource.ParseQuantity("0")
 
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				stsBuilder.Instance.Spec.Persistence.Storage = &zero
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
@@ -1349,21 +1350,21 @@ default_pass = {{ .Data.data.password }}
 		})
 
 		It("uses the correct service account", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			Expect(statefulSet.Spec.Template.Spec.ServiceAccountName).To(Equal(instance.ChildResourceName("server")))
 		})
 
 		It("mounts the service account in its pods", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			Expect(*statefulSet.Spec.Template.Spec.AutomountServiceAccountToken).To(BeTrue())
 		})
 
 		It("creates the required SecurityContext", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			rmqUID := int64(999)
@@ -1377,7 +1378,7 @@ default_pass = {{ .Data.data.password }}
 		})
 
 		It("defines a Readiness Probe", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			container := extractContainer(statefulSet.Spec.Template.Spec.Containers, "rabbitmq")
@@ -1387,7 +1388,7 @@ default_pass = {{ .Data.data.password }}
 		})
 
 		It("templates the correct InitContainer", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			initContainers := statefulSet.Spec.Template.Spec.InitContainers
@@ -1441,7 +1442,7 @@ default_pass = {{ .Data.data.password }}
 				Scheme:   scheme,
 			}
 
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			gracePeriodSeconds := statefulSet.Spec.Template.Spec.TerminationGracePeriodSeconds
@@ -1453,7 +1454,7 @@ default_pass = {{ .Data.data.password }}
 		})
 
 		It("checks mirror and quorum queue status in preStop hook", func() {
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 			expectedPreStopCommand := []string{"/bin/bash", "-c", "if [ ! -z \"$(cat /etc/pod-info/skipPreStopChecks)\" ]; then exit 0; fi; rabbitmq-upgrade await_online_quorum_plus_one -t 604800 && rabbitmq-upgrade await_online_synchronized_mirror -t 604800 && rabbitmq-upgrade drain -t 604800"}
@@ -1479,7 +1480,7 @@ default_pass = {{ .Data.data.password }}
 					Scheme:   scheme,
 				}
 
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 				expectedCPURequest, _ := k8sresource.ParseQuantity("10m")
 				expectedMemoryRequest, _ := k8sresource.ParseQuantity("3Gi")
@@ -1504,7 +1505,7 @@ default_pass = {{ .Data.data.password }}
 					Scheme:   scheme,
 				}
 
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 				container := extractContainer(statefulSet.Spec.Template.Spec.Containers, "rabbitmq")
@@ -1522,7 +1523,7 @@ default_pass = {{ .Data.data.password }}
 					Scheme:   scheme,
 				}
 
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 				container := extractContainer(statefulSet.Spec.Template.Spec.Containers, "rabbitmq")
 				Expect(container.Image).To(Equal("my-private-repo/rabbitmq:latest"))
@@ -1536,9 +1537,9 @@ default_pass = {{ .Data.data.password }}
 				Instance: &instance,
 				Scheme:   scheme,
 			}
-			stsBuilder := builder.StatefulSet()
+			stsBuilder := builder.StatefulSet(0)
 			Expect(stsBuilder.Update(statefulSet)).To(Succeed())
-			Expect(*statefulSet.Spec.Replicas).To(Equal(int32(3)))
+			Expect(*statefulSet.Spec.Replicas).To(Equal(int32(1)))
 		})
 
 		It("updates the PersistentVolumeClaim storage capacity", func() {
@@ -1590,7 +1591,7 @@ default_pass = {{ .Data.data.password }}
 						},
 					},
 				}
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				obj, err := stsBuilder.Build()
 				Expect(err).NotTo(HaveOccurred())
 				statefulSet := obj.(*appsv1.StatefulSet)
@@ -1618,7 +1619,7 @@ default_pass = {{ .Data.data.password }}
 						},
 					},
 				}
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 				Expect(statefulSet.ObjectMeta.Name).To(Equal(instance.Name))
 				Expect(statefulSet.ObjectMeta.Namespace).To(Equal(instance.Namespace))
@@ -1649,7 +1650,7 @@ default_pass = {{ .Data.data.password }}
 						},
 					},
 				}
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 				Expect(statefulSet.ObjectMeta.Name).To(Equal(instance.Name))
 				Expect(statefulSet.ObjectMeta.Namespace).To(Equal(instance.Namespace))
@@ -1671,9 +1672,9 @@ default_pass = {{ .Data.data.password }}
 					},
 				}
 
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
-				Expect(*statefulSet.Spec.Replicas).To(Equal(int32(10)))
+				Expect(*statefulSet.Spec.Replicas).To(Equal(int32(1)))
 			})
 
 			It("overrides statefulSet.spec.MinReadySeconds", func() {
@@ -1683,7 +1684,7 @@ default_pass = {{ .Data.data.password }}
 					},
 				}
 
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 				Expect(statefulSet.Spec.MinReadySeconds).To(Equal(int32(10)))
 			})
@@ -1695,7 +1696,7 @@ default_pass = {{ .Data.data.password }}
 					},
 				}
 
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 				Expect(string(statefulSet.Spec.PodManagementPolicy)).To(Equal("my-policy"))
 			})
@@ -1712,7 +1713,7 @@ default_pass = {{ .Data.data.password }}
 					},
 				}
 
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 				Expect(string(statefulSet.Spec.UpdateStrategy.Type)).To(Equal("OnDelete"))
 				Expect(*statefulSet.Spec.UpdateStrategy.RollingUpdate.Partition).To(Equal(int32(1)))
@@ -1721,14 +1722,14 @@ default_pass = {{ .Data.data.password }}
 			It("overrides statefulSet.spec.persistentVolumeClaimRetentionPolicy", func() {
 				instance.Spec.Override.StatefulSet = &rabbitmqv1beta1.StatefulSet{
 					Spec: &rabbitmqv1beta1.StatefulSetSpec{
-						PersistentVolumeClaimRetentionPolicy: &appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy{
-							WhenDeleted: "Retain",
-							WhenScaled:  "Delete",
-						},
+						//PersistentVolumeClaimRetentionPolicy: &appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy{
+						//	WhenDeleted: "Retain",
+						//	WhenScaled:  "Delete",
+						//},
 					},
 				}
 
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 				Expect(string(statefulSet.Spec.PersistentVolumeClaimRetentionPolicy.WhenScaled)).To(Equal("Delete"))
 				Expect(string(statefulSet.Spec.PersistentVolumeClaimRetentionPolicy.WhenDeleted)).To(Equal("Retain"))
@@ -1770,7 +1771,7 @@ default_pass = {{ .Data.data.password }}
 						},
 					},
 				}
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 				Expect(statefulSet.Spec.VolumeClaimTemplates).To(ConsistOf(
@@ -1859,7 +1860,7 @@ default_pass = {{ .Data.data.password }}
 						},
 					},
 				}
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 				Expect(statefulSet.Spec.VolumeClaimTemplates).To(ConsistOf(
@@ -1931,7 +1932,7 @@ default_pass = {{ .Data.data.password }}
 							},
 						},
 					}
-					stsBuilder := builder.StatefulSet()
+					stsBuilder := builder.StatefulSet(0)
 					Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 					Expect(statefulSet.Spec.Template.ObjectMeta.Name).To(Equal("my-name"))
 					Expect(statefulSet.Spec.Template.ObjectMeta.Labels).To(Equal(map[string]string{
@@ -1996,7 +1997,7 @@ default_pass = {{ .Data.data.password }}
 						Instance: &instance,
 						Scheme:   scheme,
 					}
-					stsBuilder := builder.StatefulSet()
+					stsBuilder := builder.StatefulSet(0)
 					Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 					Expect(statefulSet.Spec.Template.Spec.TopologySpreadConstraints).To(ConsistOf(
@@ -2130,7 +2131,7 @@ default_pass = {{ .Data.data.password }}
 						Instance: &instance,
 						Scheme:   scheme,
 					}
-					stsBuilder := builder.StatefulSet()
+					stsBuilder := builder.StatefulSet(0)
 					Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
 					Expect(statefulSet.Spec.Template.Spec.SecurityContext).To(BeNil())
@@ -2154,7 +2155,7 @@ default_pass = {{ .Data.data.password }}
 					})
 					When("Default TopologySpreadConstraints", func() {
 						It("uses the default", func() {
-							stsBuilder := builder.StatefulSet()
+							stsBuilder := builder.StatefulSet(0)
 							Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 							Expect(statefulSet.Spec.Template.Spec.TopologySpreadConstraints).To(ConsistOf(
 								corev1.TopologySpreadConstraint{
@@ -2173,7 +2174,7 @@ default_pass = {{ .Data.data.password }}
 					When("Disable Default TopologySpreadConstraints", func() {
 						It("does not have any constraint", func() {
 							instance.Annotations = map[string]string{rabbitmqv1beta1.DisableDefaultTopologySpreadAnnotation: "true"}
-							stsBuilder := builder.StatefulSet()
+							stsBuilder := builder.StatefulSet(0)
 							Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 							Expect(statefulSet.Spec.Template.Spec.TopologySpreadConstraints).To(BeEmpty())
 						})
@@ -2201,7 +2202,7 @@ default_pass = {{ .Data.data.password }}
 									},
 								},
 							}
-							stsBuilder := builder.StatefulSet()
+							stsBuilder := builder.StatefulSet(0)
 							Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 							Expect(statefulSet.Spec.Template.Spec.TopologySpreadConstraints).To(ConsistOf(
 								corev1.TopologySpreadConstraint{
@@ -2245,7 +2246,7 @@ default_pass = {{ .Data.data.password }}
 							Instance: &instance,
 							Scheme:   scheme,
 						}
-						stsBuilder := builder.StatefulSet()
+						stsBuilder := builder.StatefulSet(0)
 						Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 						expectedVolumeMounts := []corev1.VolumeMount{
 							{Name: "persistence", MountPath: "/var/lib/rabbitmq/mnesia/"},
@@ -2305,7 +2306,7 @@ default_pass = {{ .Data.data.password }}
 							Instance: &instance,
 							Scheme:   scheme,
 						}
-						stsBuilder := builder.StatefulSet()
+						stsBuilder := builder.StatefulSet(0)
 						Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 						Expect(extractContainer(statefulSet.Spec.Template.Spec.Containers, "rabbitmq").Env[0]).To(Equal(
 							corev1.EnvVar{
@@ -2407,10 +2408,10 @@ default_pass = {{ .Data.data.password }}
 					Instance: &instance,
 					Scheme:   scheme,
 				}
-				stsBuilder := builder.StatefulSet()
+				stsBuilder := builder.StatefulSet(0)
 				Expect(stsBuilder.Update(statefulSet)).To(Succeed())
 
-				Expect(*statefulSet.Spec.Replicas).To(Equal(int32(4)))
+				Expect(*statefulSet.Spec.Replicas).To(Equal(int32(1)))
 				Expect(extractContainer(statefulSet.Spec.Template.Spec.Containers, "rabbitmq").Image).To(Equal("override-image"))
 			})
 		})

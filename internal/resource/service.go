@@ -54,10 +54,15 @@ func (builder *ServiceBuilder) Update(object client.Object) error {
 	}
 
 	service.Spec.Ports = builder.Ports(service.Spec.Ports)
-
-	service.Spec.Type = builder.Instance.Spec.Service.Type
 	service.Spec.Selector = metadata.LabelSelector(builder.Instance.Name)
-	service.Spec.IPFamilyPolicy = builder.Instance.Spec.Service.IPFamilyPolicy
+
+	if builder.Instance.Spec.Service.Type == "" {
+		builder.Instance.Spec.Service.Type = "ClusterIP"
+	}
+	service.Spec.Type = builder.Instance.Spec.Service.Type
+	//if builder.Instance.Spec.Service.IPFamilyPolicy != nil {
+	//	service.Spec.IPFamilyPolicy = builder.Instance.Spec.Service.IPFamilyPolicy
+	//}
 
 	if builder.Instance.Spec.Service.Type == "ClusterIP" || builder.Instance.Spec.Service.Type == "" {
 		for i := range service.Spec.Ports {

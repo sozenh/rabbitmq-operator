@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/cloudflare/cfssl/log"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -24,7 +25,6 @@ import (
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
@@ -85,11 +85,15 @@ const (
 )
 
 type StatefulSetBuilder struct {
+	Index int
 	*RabbitmqResourceBuilder
 }
 
-func (builder *RabbitmqResourceBuilder) StatefulSet() *StatefulSetBuilder {
-	return &StatefulSetBuilder{builder}
+func (builder *RabbitmqResourceBuilder) StatefulSet(index int) *StatefulSetBuilder {
+	return &StatefulSetBuilder{
+		Index:                   index,
+		RabbitmqResourceBuilder: builder,
+	}
 }
 
 func (builder *StatefulSetBuilder) Build() (client.Object, error) {
@@ -97,7 +101,7 @@ func (builder *StatefulSetBuilder) Build() (client.Object, error) {
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        builder.Instance.ChildResourceName(constant.ResourceStatefulsetSuffix),
+			Name:        builder.Instance.StatefulsetName(constant.ResourceStatefulsetSuffix, builder.Index),
 			Namespace:   builder.Instance.Namespace,
 			Labels:      metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels),
 			Annotations: metadata.ReconcileAndFilterAnnotations(nil, builder.Instance.Annotations),
@@ -142,7 +146,11 @@ func (builder *StatefulSetBuilder) Update(object client.Object) error {
 	sts.Annotations = metadata.ReconcileAndFilterAnnotations(sts.Annotations, builder.Instance.Annotations)
 
 	//Replicas
-	sts.Spec.Replicas = builder.Instance.Spec.Replicas
+	if builder.Instance.Spec.Disable {
+		sts.Spec.Replicas = pointer.Int32(0)
+	} else {
+		sts.Spec.Replicas = pointer.Int32(1)
+	}
 
 	// pod template
 	sts.Spec.Template = builder.podTemplateSpec(sts.Spec.Template)
@@ -160,11 +168,6 @@ func (builder *StatefulSetBuilder) Update(object client.Object) error {
 		if err := applyStsOverride(builder.Instance, builder.Scheme, sts, builder.Instance.Spec.Override.StatefulSet); err != nil {
 			return fmt.Errorf("failed applying StatefulSet override: %w", err)
 		}
-	}
-
-	if !sts.Spec.Template.Spec.Containers[0].Resources.Limits.Memory().Equal(*sts.Spec.Template.Spec.Containers[0].Resources.Requests.Memory()) {
-		logger := ctrl.Log.WithName("statefulset").WithName("RabbitmqCluster")
-		logger.Info(fmt.Sprintf("Warning: Memory request and limit are not equal for \"%s\". It is recommended that they be set to the same value", sts.GetName()))
 	}
 
 	if err := controllerutil.SetControllerReference(builder.Instance, sts, builder.Scheme); err != nil {
@@ -226,7 +229,7 @@ func (builder *StatefulSetBuilder) envs() []corev1.EnvVar {
 
 func (builder *StatefulSetBuilder) volumeTLS() corev1.Volume {
 	volume := corev1.Volume{
-		Name: constant.VolumeNameRabbitmqTLS,
+		Name: constant.VolumeNameRabbitmqTls,
 		VolumeSource: corev1.VolumeSource{
 			Projected: &corev1.ProjectedVolumeSource{
 				Sources: []corev1.VolumeProjection{
@@ -260,6 +263,7 @@ func (builder *StatefulSetBuilder) volumeConfd() corev1.Volume {
 		Name: constant.VolumeNameRabbitmqConfd,
 		VolumeSource: corev1.VolumeSource{
 			Projected: &corev1.ProjectedVolumeSource{
+				DefaultMode: ptr.To(int32(0755)),
 				Sources: []corev1.VolumeProjection{
 					{
 						ConfigMap: &corev1.ConfigMapProjection{
@@ -309,6 +313,7 @@ func (builder *StatefulSetBuilder) volumes(currVolumes []corev1.Volume) []corev1
 			Name: constant.VolumeNamePluginsConf,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
+					DefaultMode: ptr.To(int32(0755)),
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: builder.Instance.ChildResourceName(constant.ResourcePluginConfigMapSuffix),
 					},
@@ -325,7 +330,8 @@ func (builder *StatefulSetBuilder) volumes(currVolumes []corev1.Volume) []corev1
 			Name: constant.VolumeNameErlangCookieSecret,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: builder.Instance.ChildResourceName(constant.ResourceErlangCookieSuffix),
+					DefaultMode: ptr.To(int32(0755)),
+					SecretName:  builder.Instance.ChildResourceName(constant.ResourceErlangCookieSuffix),
 				},
 			},
 		},
@@ -333,11 +339,13 @@ func (builder *StatefulSetBuilder) volumes(currVolumes []corev1.Volume) []corev1
 			Name: constant.VolumeNamePodInfo,
 			VolumeSource: corev1.VolumeSource{
 				DownwardAPI: &corev1.DownwardAPIVolumeSource{
+					DefaultMode: ptr.To(int32(0755)),
 					Items: []corev1.DownwardAPIVolumeFile{
 						{
 							Path: DeletionMarker,
 							FieldRef: &corev1.ObjectFieldSelector{
-								FieldPath: fmt.Sprintf("metadata.labels['%s']", DeletionMarker),
+								APIVersion: "v1",
+								FieldPath:  fmt.Sprintf("metadata.labels['%s']", DeletionMarker),
 							},
 						},
 					},
@@ -376,8 +384,11 @@ func (builder *StatefulSetBuilder) volumes(currVolumes []corev1.Volume) []corev1
 
 func (builder *StatefulSetBuilder) containerSetup() corev1.Container {
 	setup := corev1.Container{
-		Name:  constant.ContainerNameSetup,
-		Image: builder.Instance.Spec.Image,
+		Name:                     constant.ContainerNameSetup,
+		Image:                    builder.Instance.Spec.Image,
+		ImagePullPolicy:          corev1.PullIfNotPresent,
+		TerminationMessagePath:   "/dev/termination-log",
+		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 		Resources: corev1.ResourceRequirements{
 			Limits: corev1.ResourceList{
 				corev1.ResourceCPU:    k8sresource.MustParse(initContainerCPU),
@@ -431,6 +442,10 @@ func (builder *StatefulSetBuilder) containerRabbitmq() corev1.Container {
 		Image:     builder.Instance.Spec.Image,
 		Resources: *builder.Instance.Spec.Resources,
 
+		ImagePullPolicy:          corev1.PullIfNotPresent,
+		TerminationMessagePath:   "/dev/termination-log",
+		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+
 		// Why using a tcp readiness probe instead of running `rabbitmq-diagnostics check_port_connectivity`?
 		// Using rabbitmq-diagnostics command as the probe could cause context deadline exceeded errors
 		// Pods could be stuck at terminating at deletion as a result of that
@@ -469,7 +484,7 @@ func (builder *StatefulSetBuilder) containerRabbitmq() corev1.Container {
 	}
 
 	container.Ports = []corev1.ContainerPort{}
-	for _, port := range constant.RabbitMQPorts(builder.Instance) {
+	for _, port := range constant.NewPortManager(builder.Instance).RabbitMQPorts() {
 		container.Ports = append(container.Ports,
 			corev1.ContainerPort{Name: port.Name, ContainerPort: port.Port, Protocol: port.Protocol},
 		)
@@ -493,7 +508,7 @@ func (builder *StatefulSetBuilder) containerRabbitmq() corev1.Container {
 
 	if builder.Instance.SecretTLSEnabled() {
 		container.VolumeMounts = append(container.VolumeMounts,
-			corev1.VolumeMount{Name: constant.VolumeNameRabbitmqTLS, MountPath: dirRabbitmqTls, ReadOnly: true},
+			corev1.VolumeMount{Name: constant.VolumeNameRabbitmqTls, MountPath: dirRabbitmqTls, ReadOnly: true},
 		)
 	}
 	if !builder.Instance.VaultDefaultUserSecretEnabled() {
@@ -534,6 +549,10 @@ func (builder *StatefulSetBuilder) containerUserCredentialUpdater() corev1.Conta
 		Args:  []string{"--management-uri", managementURI, "-v", "4"},
 		Image: *builder.Instance.Spec.SecretBackend.Vault.DefaultUserUpdaterImage,
 
+		ImagePullPolicy:          corev1.PullIfNotPresent,
+		TerminationMessagePath:   "/dev/termination-log",
+		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+
 		Resources: corev1.ResourceRequirements{
 			Limits: corev1.ResourceList{
 				corev1.ResourceCPU:    k8sresource.MustParse("500m"),
@@ -555,7 +574,7 @@ func (builder *StatefulSetBuilder) containerUserCredentialUpdater() corev1.Conta
 	if builder.Instance.SecretTLSEnabled() {
 		container.VolumeMounts = append(
 			container.VolumeMounts,
-			corev1.VolumeMount{Name: constant.VolumeNameRabbitmqTLS, MountPath: dirRabbitmqTls, ReadOnly: true})
+			corev1.VolumeMount{Name: constant.VolumeNameRabbitmqTls, MountPath: dirRabbitmqTls, ReadOnly: true})
 	}
 	// If instance.VaultTLSEnabled() volume mount /etc/rabbitmq-tls/ will be added by Vault injector.
 
@@ -642,7 +661,14 @@ func podHostNames(instance *rabbitmqv1beta1.RabbitmqCluster) string {
 	altNames := ""
 	var i int32
 	for i = 0; i < ptr.Deref(instance.Spec.Replicas, 1); i++ {
-		altNames += fmt.Sprintf(",%s", fmt.Sprintf("%s-%d.%s.%s", instance.ChildResourceName(constant.ResourceStatefulsetSuffix), i, instance.ChildResourceName(constant.ResourceHeadlessServiceSuffix), instance.Namespace))
+		altNames += fmt.Sprintf(
+			",%s",
+			fmt.Sprintf(
+				"%s.%s.%s",
+				instance.PodName(constant.ResourceStatefulsetSuffix, int(i)),
+				instance.ChildResourceName(constant.ResourceHeadlessServiceSuffix), instance.Namespace,
+			),
+		)
 	}
 	return strings.TrimPrefix(altNames, ",")
 }

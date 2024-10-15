@@ -9,6 +9,8 @@ import (
 
 // RabbitmqClusterStatus presents the observed state of RabbitmqCluster
 type RabbitmqClusterStatus struct {
+	Replicas int32 `json:"replicas"`
+
 	// Set of Conditions describing the current state of the RabbitmqCluster
 	Conditions []RabbitmqClusterCondition `json:"conditions"`
 

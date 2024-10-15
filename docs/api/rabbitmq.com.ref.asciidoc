@@ -198,9 +198,9 @@ More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-
 | Field | Description
 | *`type`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterconditiontype[$$RabbitmqClusterConditionType$$]__ | Type indicates the scope of RabbitmqCluster status addressed by the condition.
 | *`status`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#conditionstatus-v1-core[$$ConditionStatus$$]__ | True, False, or Unknown
+| *`lastTransitionTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#time-v1-meta[$$Time$$]__ | The last time this Condition type changed.
 | *`reason`* __string__ | One word, camel-case reason for current status of the condition.
 | *`message`* __string__ | Full text reason for current status of the condition.
-| *`lastTransitionTime`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#time-v1-meta[$$Time$$]__ | The last time this Condition type changed.
 |===
 
 
@@ -380,8 +380,6 @@ RabbitmqClusterServiceSpec settable attributes for the Service resource.
 | *`type`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#servicetype-v1-core[$$ServiceType$$]__ | Type of Service to create for the cluster. Must be one of: ClusterIP, LoadBalancer, NodePort.
 For more info see https://pkg.go.dev/k8s.io/api/core/v1#ServiceType
 | *`annotations`* __object (keys:string, values:string)__ | Annotations to add to the Service.
-| *`ipFamilyPolicy`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#ipfamilypolicy-v1-core[$$IPFamilyPolicy$$]__ | IPFamilyPolicy represents the dual-stack-ness requested or required by a Service
-See also: https://pkg.go.dev/k8s.io/api/core/v1#IPFamilyPolicy
 |===
 
 
@@ -398,6 +396,7 @@ RabbitmqClusterSpec is the desired state of the RabbitmqCluster Custom Resource.
 [cols="25a,75a", options="header"]
 |===
 | Field | Description
+| *`disable`* __boolean__ | 
 | *`replicas`* __integer__ | Replicas is the number of nodes in the RabbitMQ cluster.
 Each node is deployed as a Replica in a StatefulSet. Only 1, 3, 5 replicas clusters are tested.
 This value should be an odd number to ensure the resultant cluster can establish exactly one quorum of nodes
@@ -445,6 +444,7 @@ RabbitmqClusterStatus presents the observed state of RabbitmqCluster
 [cols="25a,75a", options="header"]
 |===
 | Field | Description
+| *`replicas`* __integer__ | 
 | *`conditions`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclustercondition[$$RabbitmqClusterCondition$$] array__ | Set of Conditions describing the current state of the RabbitmqCluster
 | *`defaultUser`* __xref:{anchor_prefix}-github-com-rabbitmq-cluster-operator-v2-api-v1beta1-rabbitmqclusterdefaultuser[$$RabbitmqClusterDefaultUser$$]__ | Identifying information on internal resources
 | *`binding`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#localobjectreference-v1-core[$$LocalObjectReference$$]__ | Binding exposes a secret containing the binding information for this
@@ -566,8 +566,6 @@ Template.
 be ready without any of its container crashing, for it to be considered
 available. Defaults to 0 (pod will be considered available as soon as it
 is ready).
-| *`persistentVolumeClaimRetentionPolicy`* __link:https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#statefulsetpersistentvolumeclaimretentionpolicy-v1-apps[$$StatefulSetPersistentVolumeClaimRetentionPolicy$$]__ | StatefulSetPersistentVolumeClaimRetentionPolicy describes the policy used for PVCs
-created from the StatefulSet VolumeClaimTemplates.
 |===
 
 

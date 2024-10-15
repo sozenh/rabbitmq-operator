@@ -12,14 +12,15 @@ package resource_test
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
-	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	defaultscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 )
 
 var _ = Describe("HeadlessService", func() {
@@ -204,7 +205,7 @@ var _ = Describe("HeadlessService", func() {
 
 		It("sets the IP family", func() {
 			dualStack := ptr.To(corev1.IPFamilyPolicyPreferDualStack)
-			instance.Spec.Service.IPFamilyPolicy = dualStack
+			//instance.Spec.Service.IPFamilyPolicy = dualStack
 			Expect(serviceBuilder.Update(service)).To(Succeed())
 
 			expectedSpec := corev1.ServiceSpec{

@@ -50,16 +50,17 @@ func (builder *HeadlessServiceBuilder) Update(object client.Object) error {
 	service.Labels = metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels)
 	service.Annotations = metadata.ReconcileAndFilterAnnotations(service.GetAnnotations(), builder.Instance.Annotations)
 
-	service.Spec = corev1.ServiceSpec{
-		Type:            corev1.ServiceTypeClusterIP,
-		ClusterIP:       corev1.ClusterIPNone,
-		SessionAffinity: corev1.ServiceAffinityNone,
-		Selector:        metadata.LabelSelector(builder.Instance.Name),
+	service.Spec.Type = corev1.ServiceTypeClusterIP
+	service.Spec.ClusterIP = corev1.ClusterIPNone
+	service.Spec.SessionAffinity = corev1.ServiceAffinityNone
+	service.Spec.Selector = metadata.LabelSelector(builder.Instance.Name)
 
-		Ports:                    builder.Ports(service.Spec.Ports),
-		PublishNotReadyAddresses: true,
-		IPFamilyPolicy:           builder.Instance.Spec.Service.IPFamilyPolicy,
-	}
+	service.Spec.Ports = builder.Ports(service.Spec.Ports)
+	service.Spec.PublishNotReadyAddresses = true
+
+	//if builder.Instance.Spec.Service.IPFamilyPolicy != nil {
+	//	service.Spec.IPFamilyPolicy = builder.Instance.Spec.Service.IPFamilyPolicy
+	//}
 
 	if err := controllerutil.SetControllerReference(builder.Instance, service, builder.Scheme); err != nil {
 		return fmt.Errorf("failed setting controller reference: %w", err)

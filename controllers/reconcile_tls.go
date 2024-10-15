@@ -7,31 +7,35 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/controllers/result"
+	"github.com/rabbitmq/cluster-operator/v2/internal/status"
 )
 
 var disableNonTLSConfigErr = errors.New("TLS must be enabled if disableNonTLSListeners is set to true")
 
-func (r *RabbitmqClusterReconciler) reconcileTLS(ctx context.Context, rabbitmqCluster *rabbitmqv1beta1.RabbitmqCluster) error {
+func (r *RabbitmqClusterReconciler) reconcileTLS(
+	ctx context.Context, rabbitmqCluster *rabbitmqv1beta1.RabbitmqCluster) result.ReconcileResult {
 	// if tls.disableNonTLSListeners set to true and TLS is not enabled, it's a configuration error
 	// reconcileTLS() will return a special error so the operator won't requeue
 	if rabbitmqCluster.DisableNonTLSListeners() && !rabbitmqCluster.TLSEnabled() {
 		r.Recorder.Event(rabbitmqCluster, corev1.EventTypeWarning, "TLSError", disableNonTLSConfigErr.Error())
 		ctrl.LoggerFrom(ctx).Error(disableNonTLSConfigErr, "Error setting up TLS")
-		r.setReconcileSuccess(ctx, rabbitmqCluster, corev1.ConditionFalse, "TLSError", disableNonTLSConfigErr.Error())
-		return disableNonTLSConfigErr
+		status.SetCondition(&rabbitmqCluster.Status, rabbitmqv1beta1.ReconcileSuccess, corev1.ConditionFalse, "TLSError", disableNonTLSConfigErr.Error())
+		return result.Done()
 	}
 
 	if rabbitmqCluster.SecretTLSEnabled() {
 		if err := r.checkTLSSecrets(ctx, rabbitmqCluster); err != nil {
-			r.setReconcileSuccess(ctx, rabbitmqCluster, corev1.ConditionFalse, "TLSError", err.Error())
-			return err
+			status.SetCondition(&rabbitmqCluster.Status, rabbitmqv1beta1.ReconcileSuccess, corev1.ConditionFalse, "TLSError", err.Error())
+			return result.Error(err)
 		}
 	}
-	return nil
+	return result.Continue()
 }
 
 func (r *RabbitmqClusterReconciler) checkTLSSecrets(ctx context.Context, rabbitmqCluster *rabbitmqv1beta1.RabbitmqCluster) error {

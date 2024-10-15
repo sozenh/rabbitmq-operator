@@ -2,45 +2,88 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"time"
-
-	"github.com/go-logr/logr"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	clientretry "k8s.io/client-go/util/retry"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/controllers/result"
 	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
 	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 )
 
 const (
-	pluginsUpdateAnnotation = "rabbitmq.com/pluginsUpdatedAt"
-	serverConfAnnotation    = "rabbitmq.com/serverConfUpdatedAt"
-	stsRestartAnnotation    = "rabbitmq.com/lastRestartAt"
-	stsCreateAnnotation     = "rabbitmq.com/createdAt"
+	pluginsUpdateAnnotation  = "rabbitmq.com/pluginsUpdatedAt"
+	serverConfAnnotation     = "rabbitmq.com/serverConfUpdatedAt"
+	stsRestartAnnotation     = "rabbitmq.com/lastRestartAt"
+	stsCreateAnnotation      = "rabbitmq.com/createdAt"
+	queueRebalanceAnnotation = "rabbitmq.com/queueRebalanceNeededAt"
 )
+
+func (r *RabbitmqClusterReconciler) reconcileQueueRebalanced(
+	ctx context.Context, rmq *rabbitmqv1beta1.RabbitmqCluster) result.ReconcileResult {
+	statefulsets, err := r.statefulSets(ctx, rmq)
+	// The StatefulSet may not have been created by this point, so ignore Not Found errors
+	if client.IgnoreNotFound(err) != nil {
+		return result.Error(err)
+	}
+
+	needRebalance := false
+	for _, statefulset := range statefulsets {
+		if statefulSetNeedsQueueRebalance(&statefulset, rmq) {
+			needRebalance = true
+			break
+		}
+	}
+
+	if !needRebalance {
+		return result.Continue()
+	}
+	return r.markForQueueRebalance(ctx, rmq)
+}
+
+func (r *RabbitmqClusterReconciler) markForQueueRebalance(
+	ctx context.Context, rmq *rabbitmqv1beta1.RabbitmqCluster) result.ReconcileResult {
+	if rmq.ObjectMeta.Annotations == nil {
+		rmq.ObjectMeta.Annotations = make(map[string]string)
+	}
+
+	if len(rmq.ObjectMeta.Annotations[queueRebalanceAnnotation]) > 0 {
+		return result.Continue()
+	}
+
+	rmq.ObjectMeta.Annotations[queueRebalanceAnnotation] = time.Now().Format(time.RFC3339)
+
+	err := r.Update(ctx, rmq)
+	if err == nil {
+		return result.Done()
+	}
+	ctrl.LoggerFrom(ctx).Error(err, "Failed to mark annotation for queue rebalance")
+	return result.Error(err)
+}
 
 // Annotates an object depending on object type and operationResult.
 // These annotations are temporary markers used in later reconcile loops to perform some action (such as restarting the StatefulSet or executing RabbitMQ CLI commands)
-func (r *RabbitmqClusterReconciler) annotateIfNeeded(ctx context.Context, logger logr.Logger, builder resource.ResourceBuilder, operationResult controllerutil.OperationResult, rmq *rabbitmqv1beta1.RabbitmqCluster) error {
+func (r *RabbitmqClusterReconciler) annotateIfNeeded(
+	ctx context.Context, rmq *rabbitmqv1beta1.RabbitmqCluster, builder resource.ResourceBuilder, operationResult controllerutil.OperationResult) result.ReconcileResult {
+
 	var (
 		obj           client.Object
 		objName       string
 		annotationKey string
+		logger        = ctrl.LoggerFrom(ctx)
 	)
 
 	switch b := builder.(type) {
-
+	default:
+		return result.Continue()
 	case *resource.RabbitmqPluginsConfigMapBuilder:
 		if operationResult != controllerutil.OperationResultUpdated {
-			return nil
+			return result.Continue()
 		}
 		obj = &corev1.ConfigMap{}
 		objName = rmq.ChildResourceName(constant.ResourcePluginConfigMapSuffix)
@@ -48,7 +91,7 @@ func (r *RabbitmqClusterReconciler) annotateIfNeeded(ctx context.Context, logger
 
 	case *resource.ServerConfigMapBuilder:
 		if operationResult != controllerutil.OperationResultUpdated || !b.UpdateRequiresStsRestart {
-			return nil
+			return result.Continue()
 		}
 		obj = &corev1.ConfigMap{}
 		objName = rmq.ChildResourceName(constant.ResourceServerConfigMapSuffix)
@@ -56,88 +99,94 @@ func (r *RabbitmqClusterReconciler) annotateIfNeeded(ctx context.Context, logger
 
 	case *resource.StatefulSetBuilder:
 		if operationResult != controllerutil.OperationResultCreated {
-			return nil
+			return result.Continue()
 		}
 		obj = &appsv1.StatefulSet{}
-		objName = rmq.ChildResourceName(constant.ResourceStatefulsetSuffix)
+		objName = rmq.StatefulsetName(constant.ResourceStatefulsetSuffix, b.Index)
 		annotationKey = stsCreateAnnotation
 
-	default:
-		return nil
 	}
 
 	if err := r.updateAnnotation(ctx, obj, rmq.Namespace, objName, annotationKey, time.Now().Format(time.RFC3339)); err != nil {
 		msg := "failed to annotate " + objName
 		logger.Error(err, msg)
 		r.Recorder.Event(rmq, corev1.EventTypeWarning, "FailedUpdate", msg)
-		return err
+		return result.Error(err)
 	}
 
-	logger.Info("successfully annotated")
-	return nil
+	logger.Info("successfully annotated", "object", objName, "annotate", annotationKey)
+	return result.Done()
 }
 
-// Adds an arbitrary annotation to the sts PodTemplate to trigger a sts restart.
-// It compares annotation "rabbitmq.com/serverConfUpdatedAt" from server-conf configMap and annotation "rabbitmq.com/lastRestartAt" from sts
-// to determine whether to restart sts.
-func (r *RabbitmqClusterReconciler) restartStatefulSetIfNeeded(ctx context.Context, logger logr.Logger, rmq *rabbitmqv1beta1.RabbitmqCluster) (time.Duration, error) {
-	serverConf, err := r.configMap(ctx, rmq, rmq.ChildResourceName(constant.ResourceServerConfigMapSuffix))
-	if err != nil {
-		// requeue request after 10s if unable to find server-conf configmap, else return the error
-		return 10 * time.Second, client.IgnoreNotFound(err)
+func (r *RabbitmqClusterReconciler) statefulsetCreated(sts *appsv1.StatefulSet) bool {
+	if sts.Annotations == nil {
+		return false
 	}
-
-	serverConfigUpdatedAt, ok := serverConf.Annotations[serverConfAnnotation]
-	if !ok {
-		// server-conf configmap hasn't been updated; no need to restart sts
-		return 0, nil
+	if sts.Annotations[stsCreateAnnotation] == "" {
+		return false
 	}
-
-	sts, err := r.statefulSet(ctx, rmq)
-	if err != nil {
-		// requeue request after 10s if unable to find sts, else return the error
-		return 10 * time.Second, client.IgnoreNotFound(err)
-	}
-
-	stsRestartedAt, ok := sts.Spec.Template.ObjectMeta.Annotations[stsRestartAnnotation]
-	if ok && stsRestartedAt > serverConfigUpdatedAt {
-		// sts was updated after the last server-conf configmap update; no need to restart sts
-		return 0, nil
-	}
-
-	if err := clientretry.RetryOnConflict(clientretry.DefaultRetry, func() error {
-		sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: rmq.ChildResourceName("server"), Namespace: rmq.Namespace}}
-		if err := r.Get(ctx, types.NamespacedName{Name: sts.Name, Namespace: sts.Namespace}, sts); err != nil {
-			return err
-		}
-		if sts.Spec.Template.ObjectMeta.Annotations == nil {
-			sts.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
-		}
-		sts.Spec.Template.ObjectMeta.Annotations[stsRestartAnnotation] = time.Now().Format(time.RFC3339)
-		return r.Update(ctx, sts)
-	}); err != nil {
-		msg := fmt.Sprintf("failed to restart StatefulSet %s; rabbitmq.conf configuration may be outdated", rmq.ChildResourceName("server"))
-		logger.Error(err, msg)
-		r.Recorder.Event(rmq, corev1.EventTypeWarning, "FailedUpdate", msg)
-		// failed to restart sts; return error to requeue request
-		return 0, err
-	}
-
-	msg := fmt.Sprintf("restarted StatefulSet %s", rmq.ChildResourceName("server"))
-	logger.Info(msg)
-	r.Recorder.Event(rmq, corev1.EventTypeNormal, "SuccessfulUpdate", msg)
-
-	return 0, nil
+	return true
 }
 
-func pluginsConfigUpdatedRecently(cfg *corev1.ConfigMap) (bool, error) {
+func (r *RabbitmqClusterReconciler) serverConfigUpdated(cfg *corev1.ConfigMap) bool {
+	if cfg.Annotations == nil {
+		return false
+	}
+	if cfg.Annotations[serverConfAnnotation] == "" {
+		return false
+	}
+
+	return true
+}
+
+func (r *RabbitmqClusterReconciler) pluginsConfigUpdated(cfg *corev1.ConfigMap) bool {
+	if cfg.Annotations == nil {
+		return false
+	}
+	if cfg.Annotations[pluginsUpdateAnnotation] == "" {
+		return false
+	}
+
+	return true
+}
+
+func (r *RabbitmqClusterReconciler) pluginsConfigUpdatedRecently(cfg *corev1.ConfigMap) bool {
+	if !r.pluginsConfigUpdated(cfg) {
+		return false
+	}
 	pluginsUpdatedAt, ok := cfg.Annotations[pluginsUpdateAnnotation]
 	if !ok {
-		return false, nil // plugins configMap was not updated
+		return false // plugins configMap was not updated
 	}
 	annotationTime, err := time.Parse(time.RFC3339, pluginsUpdatedAt)
 	if err != nil {
-		return false, err
+		return false
 	}
-	return time.Since(annotationTime).Seconds() < 2, nil
+	return time.Since(annotationTime).Seconds() < 2
+}
+
+func (r *RabbitmqClusterReconciler) needQueueRebalance(rmq *rabbitmqv1beta1.RabbitmqCluster) bool {
+	if rmq.Annotations == nil {
+		return false
+	}
+	if rmq.Annotations[queueRebalanceAnnotation] == "" {
+		return false
+	}
+	return true
+}
+
+func (r *RabbitmqClusterReconciler) removeStatefulsetCreatedFlag(ctx context.Context, sts *appsv1.StatefulSet) error {
+	return r.deleteAnnotation(ctx, sts, stsCreateAnnotation)
+}
+
+func (r *RabbitmqClusterReconciler) removeServerConfigUpdatedFlag(ctx context.Context, cfg *corev1.ConfigMap) error {
+	return r.deleteAnnotation(ctx, cfg, serverConfAnnotation)
+}
+
+func (r *RabbitmqClusterReconciler) removePluginsConfigUpdatedFlag(ctx context.Context, cfg *corev1.ConfigMap) error {
+	return r.deleteAnnotation(ctx, cfg, pluginsUpdateAnnotation)
+}
+
+func (r *RabbitmqClusterReconciler) removeQueueRebalanceFlag(ctx context.Context, rmq *rabbitmqv1beta1.RabbitmqCluster) error {
+	return r.deleteAnnotation(ctx, rmq, queueRebalanceAnnotation)
 }

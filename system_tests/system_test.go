@@ -29,7 +29,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
+
 	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 )
@@ -356,7 +359,7 @@ CONSOLE_LOG=new`
 
 			// PVC storage capacity updated
 			Eventually(func() k8sresource.Quantity {
-				pvcName := cluster.PVCName(0)
+				pvcName := cluster.PVCName(constant.ResourceStatefulsetSuffix, 0, constant.PVCName)
 				pvc, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				fmt.Printf("Retrieved PVC %s with conditions %+v\n", pvcName, pvc.Status.Conditions)

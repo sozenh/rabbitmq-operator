@@ -175,10 +175,10 @@ deploy::deploy-namespace-rbac
 deploy::deploy-manager
 
 .PHONY: deploy-dev
-deploy-dev::docker-build-dev ## Deploy operator in the configured Kubernetes cluster in ~/.kube/config, with local changes
+#deploy-dev::docker-build-dev ## Deploy operator in the configured Kubernetes cluster in ~/.kube/config, with local changes
 deploy-dev::manifests
 deploy-dev::deploy-namespace-rbac
-deploy-dev::docker-registry-secret
+#deploy-dev::docker-registry-secret
 deploy-dev::deploy-manager-dev
 
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
@@ -207,7 +207,7 @@ generate-installation-manifest: | $(YTT)
 docker-build: ## Build the docker image with tag `latest`
 	@$(call check_defined, OPERATOR_IMAGE, path to the Operator image within the registry e.g. rabbitmq/cluster-operator)
 	@$(call check_defined, DOCKER_REGISTRY_SERVER, URL of docker registry containing the Operator image e.g. registry.my-company.com)
-	docker buildx build --build-arg=GIT_COMMIT=$(GIT_COMMIT) -t $(DOCKER_REGISTRY_SERVER)/$(OPERATOR_IMAGE):latest .
+	sudo docker buildx build --build-arg=GIT_COMMIT=$(GIT_COMMIT) -t $(DOCKER_REGISTRY_SERVER)/$(OPERATOR_IMAGE):latest .
 
 docker-push: ## Push the docker image with tag `latest`
 	@$(call check_defined, OPERATOR_IMAGE, path to the Operator image within the registry e.g. rabbitmq/cluster-operator)
@@ -217,8 +217,7 @@ docker-push: ## Push the docker image with tag `latest`
 docker-build-dev:
 	@$(call check_defined, OPERATOR_IMAGE, path to the Operator image within the registry e.g. rabbitmq/cluster-operator)
 	@$(call check_defined, DOCKER_REGISTRY_SERVER, URL of docker registry containing the Operator image e.g. registry.my-company.com)
-	docker buildx build --build-arg=GIT_COMMIT=$(GIT_COMMIT) -t $(DOCKER_REGISTRY_SERVER)/$(OPERATOR_IMAGE):$(GIT_COMMIT) .
-	docker push $(DOCKER_REGISTRY_SERVER)/$(OPERATOR_IMAGE):$(GIT_COMMIT)
+	docker buildx build --push --build-arg=GIT_COMMIT=$(GIT_COMMIT) -t $(DOCKER_REGISTRY_SERVER)/$(OPERATOR_IMAGE):$(GIT_COMMIT) .
 
 # https://github.com/cert-manager/cmctl/releases
 # Cert Manager now publishes CMCTL independently from cert-manager

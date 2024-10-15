@@ -12,8 +12,6 @@ package resource_test
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
-	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +19,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	defaultscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 )
 
 var _ = Context("Services", func() {
@@ -96,21 +97,21 @@ var _ = Context("Services", func() {
 						Name:        "amqps",
 						Protocol:    corev1.ProtocolTCP,
 						Port:        5671,
-						TargetPort:  intstr.FromInt(5671),
+						TargetPort:  intstr.FromInt32(5671),
 						AppProtocol: ptr.To("amqps"),
 					},
 					{
 						Name:        "management-tls",
 						Protocol:    corev1.ProtocolTCP,
 						Port:        15671,
-						TargetPort:  intstr.FromInt(15671),
+						TargetPort:  intstr.FromInt32(15671),
 						AppProtocol: ptr.To("https"),
 					},
 					{
 						Name:        "prometheus-tls",
 						Protocol:    corev1.ProtocolTCP,
 						Port:        15691,
-						TargetPort:  intstr.FromInt(15691),
+						TargetPort:  intstr.FromInt32(15691),
 						AppProtocol: ptr.To("prometheus.io/metric-tls"),
 					},
 				}))
@@ -118,7 +119,7 @@ var _ = Context("Services", func() {
 					Name:        "prometheus",
 					Protocol:    corev1.ProtocolTCP,
 					Port:        15692,
-					TargetPort:  intstr.FromInt(15692),
+					TargetPort:  intstr.FromInt32(15692),
 					AppProtocol: ptr.To("prometheus.io/metric"),
 				},
 				))
@@ -133,21 +134,21 @@ var _ = Context("Services", func() {
 							Name:        "mqtts",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        8883,
-							TargetPort:  intstr.FromInt(8883),
+							TargetPort:  intstr.FromInt32(8883),
 							AppProtocol: ptr.To("mqtts"),
 						},
 						{
 							Name:        "stomps",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        61614,
-							TargetPort:  intstr.FromInt(61614),
+							TargetPort:  intstr.FromInt32(61614),
 							AppProtocol: ptr.To("stomp.github.io/stomp-tls"),
 						},
 						{
 							Name:        "streams",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        5551,
-							TargetPort:  intstr.FromInt(5551),
+							TargetPort:  intstr.FromInt32(5551),
 							AppProtocol: ptr.To("rabbitmq.com/stream-tls"),
 						},
 					}))
@@ -164,14 +165,14 @@ var _ = Context("Services", func() {
 							Name:        "web-mqtt-tls",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        15676,
-							TargetPort:  intstr.FromInt(15676),
+							TargetPort:  intstr.FromInt32(15676),
 							AppProtocol: ptr.To("https"),
 						},
 						{
 							Name:        "web-stomp-tls",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        15673,
-							TargetPort:  intstr.FromInt(15673),
+							TargetPort:  intstr.FromInt32(15673),
 							AppProtocol: ptr.To("https"),
 						},
 					}))
@@ -187,7 +188,7 @@ var _ = Context("Services", func() {
 							Name:        "streams",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        5551,
-							TargetPort:  intstr.FromInt(5551),
+							TargetPort:  intstr.FromInt32(5551),
 							AppProtocol: ptr.To("rabbitmq.com/stream-tls"),
 						},
 					}))
@@ -203,7 +204,7 @@ var _ = Context("Services", func() {
 							Name:        "streams",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        5551,
-							TargetPort:  intstr.FromInt(5551),
+							TargetPort:  intstr.FromInt32(5551),
 							AppProtocol: ptr.To("rabbitmq.com/stream-tls"),
 						},
 					}))
@@ -219,21 +220,21 @@ var _ = Context("Services", func() {
 							Name:        "amqps",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        5671,
-							TargetPort:  intstr.FromInt(5671),
+							TargetPort:  intstr.FromInt32(5671),
 							AppProtocol: ptr.To("amqps"),
 						},
 						{
 							Name:        "management-tls",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        15671,
-							TargetPort:  intstr.FromInt(15671),
+							TargetPort:  intstr.FromInt32(15671),
 							AppProtocol: ptr.To("https"),
 						},
 						{
 							Name:        "prometheus-tls",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        15691,
-							TargetPort:  intstr.FromInt(15691),
+							TargetPort:  intstr.FromInt32(15691),
 							AppProtocol: ptr.To("prometheus.io/metric-tls"),
 						},
 					}))
@@ -248,7 +249,7 @@ var _ = Context("Services", func() {
 							Name:        "amqps",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        5671,
-							TargetPort:  intstr.FromInt(5671),
+							TargetPort:  intstr.FromInt32(5671),
 							AppProtocol: ptr.To("amqps"),
 						}
 						managementTLSPort := corev1.ServicePort{
@@ -256,7 +257,7 @@ var _ = Context("Services", func() {
 							Name:        "management-tls",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        15671,
-							TargetPort:  intstr.FromInt(15671),
+							TargetPort:  intstr.FromInt32(15671),
 							AppProtocol: ptr.To("https"),
 						}
 						prometheusTLSPort := corev1.ServicePort{
@@ -264,13 +265,13 @@ var _ = Context("Services", func() {
 							Name:        "prometheus-tls",
 							Protocol:    corev1.ProtocolTCP,
 							Port:        15691,
-							TargetPort:  intstr.FromInt(15691),
+							TargetPort:  intstr.FromInt32(15691),
 							AppProtocol: ptr.To("prometheus.io/metric-tls"),
 						}
 						expectedPort := corev1.ServicePort{
 							Name:        servicePortName,
 							Port:        int32(port),
-							TargetPort:  intstr.FromInt(port),
+							TargetPort:  intstr.FromInt32(int32(port)),
 							Protocol:    corev1.ProtocolTCP,
 							AppProtocol: appProtocol,
 						}
@@ -298,14 +299,14 @@ var _ = Context("Services", func() {
 							Protocol:    corev1.ProtocolTCP,
 							AppProtocol: ptr.To("https"),
 							Port:        15676,
-							TargetPort:  intstr.FromInt(15676),
+							TargetPort:  intstr.FromInt32(15676),
 						},
 						{
 							Name:        "mqtts",
 							Protocol:    corev1.ProtocolTCP,
 							AppProtocol: ptr.To("mqtts"),
 							Port:        8883,
-							TargetPort:  intstr.FromInt(8883),
+							TargetPort:  intstr.FromInt32(8883),
 						},
 					}))
 				})
@@ -322,14 +323,14 @@ var _ = Context("Services", func() {
 							Protocol:    corev1.ProtocolTCP,
 							AppProtocol: ptr.To("https"),
 							Port:        15673,
-							TargetPort:  intstr.FromInt(15673),
+							TargetPort:  intstr.FromInt32(15673),
 						},
 						{
 							Name:        "stomps",
 							Protocol:    corev1.ProtocolTCP,
 							AppProtocol: ptr.To("stomp.github.io/stomp-tls"),
 							Port:        61614,
-							TargetPort:  intstr.FromInt(61614),
+							TargetPort:  intstr.FromInt32(61614),
 						},
 					}))
 				})
@@ -528,21 +529,21 @@ var _ = Context("Services", func() {
 				amqpPort := corev1.ServicePort{
 					Name:        "amqp",
 					Port:        5672,
-					TargetPort:  intstr.FromInt(5672),
+					TargetPort:  intstr.FromInt32(5672),
 					Protocol:    corev1.ProtocolTCP,
 					AppProtocol: ptr.To("amqp"),
 				}
 				managementPort := corev1.ServicePort{
 					Name:        "management",
 					Port:        15672,
-					TargetPort:  intstr.FromInt(15672),
+					TargetPort:  intstr.FromInt32(15672),
 					Protocol:    corev1.ProtocolTCP,
 					AppProtocol: ptr.To("http"),
 				}
 				prometheusPort := corev1.ServicePort{
 					Name:        "prometheus",
 					Port:        15692,
-					TargetPort:  intstr.FromInt(15692),
+					TargetPort:  intstr.FromInt32(15692),
 					Protocol:    corev1.ProtocolTCP,
 					AppProtocol: ptr.To("prometheus.io/metrics"),
 				}
@@ -557,7 +558,7 @@ var _ = Context("Services", func() {
 					expectedPort := corev1.ServicePort{
 						Name:        servicePortName,
 						Port:        int32(port),
-						TargetPort:  intstr.FromInt(port),
+						TargetPort:  intstr.FromInt32(int32(port)),
 						Protocol:    corev1.ProtocolTCP,
 						AppProtocol: appProtocol,
 					}
@@ -589,7 +590,7 @@ var _ = Context("Services", func() {
 					{
 						Protocol:    corev1.ProtocolTCP,
 						Port:        5672,
-						TargetPort:  intstr.FromInt(5672),
+						TargetPort:  intstr.FromInt32(5672),
 						Name:        "amqp",
 						NodePort:    12345,
 						AppProtocol: ptr.To("amqp"),
@@ -598,7 +599,7 @@ var _ = Context("Services", func() {
 						Protocol:    corev1.ProtocolTCP,
 						Port:        15672,
 						Name:        "management",
-						TargetPort:  intstr.FromInt(15672),
+						TargetPort:  intstr.FromInt32(15672),
 						NodePort:    1234,
 						AppProtocol: nil, // explicitly leaving this nill to test that Update sets the correct value
 					},
@@ -612,7 +613,7 @@ var _ = Context("Services", func() {
 					Name:        "amqp",
 					Protocol:    corev1.ProtocolTCP,
 					Port:        5672,
-					TargetPort:  intstr.FromInt(5672),
+					TargetPort:  intstr.FromInt32(5672),
 					NodePort:    12345,
 					AppProtocol: ptr.To("amqp"),
 				}
@@ -620,7 +621,7 @@ var _ = Context("Services", func() {
 					Protocol:    corev1.ProtocolTCP,
 					Port:        15672,
 					Name:        "management",
-					TargetPort:  intstr.FromInt(15672),
+					TargetPort:  intstr.FromInt32(15672),
 					NodePort:    1234,
 					AppProtocol: ptr.To("http"),
 				}
@@ -636,7 +637,7 @@ var _ = Context("Services", func() {
 						{
 							Protocol:   corev1.ProtocolTCP,
 							Port:       5672,
-							TargetPort: intstr.FromInt(5672),
+							TargetPort: intstr.FromInt32(5672),
 							Name:       "amqp",
 							NodePort:   12345,
 						},
@@ -652,7 +653,7 @@ var _ = Context("Services", func() {
 						Name:        "amqp",
 						Protocol:    corev1.ProtocolTCP,
 						Port:        5672,
-						TargetPort:  intstr.FromInt(5672),
+						TargetPort:  intstr.FromInt32(5672),
 						NodePort:    0,
 						AppProtocol: ptr.To("amqp"),
 					}
@@ -669,7 +670,7 @@ var _ = Context("Services", func() {
 						{
 							Protocol:   corev1.ProtocolTCP,
 							Port:       5672,
-							TargetPort: intstr.FromInt(5672),
+							TargetPort: intstr.FromInt32(5672),
 							Name:       "amqp",
 							NodePort:   12345,
 						},
@@ -683,7 +684,7 @@ var _ = Context("Services", func() {
 						Name:        "amqp",
 						Protocol:    corev1.ProtocolTCP,
 						Port:        5672,
-						TargetPort:  intstr.FromInt(5672),
+						TargetPort:  intstr.FromInt32(5672),
 						NodePort:    0,
 						AppProtocol: ptr.To("amqp"),
 					}
@@ -713,7 +714,7 @@ var _ = Context("Services", func() {
 			})
 
 			It("sets the IP family policy", func() {
-				instance.Spec.Service.IPFamilyPolicy = ptr.To(corev1.IPFamilyPolicyPreferDualStack)
+				//instance.Spec.Service.IPFamilyPolicy = ptr.To(corev1.IPFamilyPolicyPreferDualStack)
 				Expect(serviceBuilder.Update(svc)).To(Succeed())
 				Expect(svc.Spec.IPFamilyPolicy).To(BeEquivalentTo(ptr.To("PreferDualStack")))
 			})
@@ -769,7 +770,7 @@ var _ = Context("Services", func() {
 							{
 								Protocol:    corev1.ProtocolUDP,
 								Port:        12345,
-								TargetPort:  intstr.FromInt(12345),
+								TargetPort:  intstr.FromInt32(12345),
 								Name:        "my-new-port",
 								AppProtocol: ptr.To("my.company.com/protocol"),
 							},
@@ -799,28 +800,28 @@ var _ = Context("Services", func() {
 					corev1.ServicePort{
 						Name:        "amqp",
 						Port:        5672,
-						TargetPort:  intstr.FromInt(5672),
+						TargetPort:  intstr.FromInt32(5672),
 						Protocol:    corev1.ProtocolTCP,
 						AppProtocol: ptr.To("amqp"),
 					},
 					corev1.ServicePort{
 						Name:        "management",
 						Port:        15672,
-						TargetPort:  intstr.FromInt(15672),
+						TargetPort:  intstr.FromInt32(15672),
 						Protocol:    corev1.ProtocolTCP,
 						AppProtocol: ptr.To("http"),
 					},
 					corev1.ServicePort{
 						Name:        "prometheus",
 						Port:        15692,
-						TargetPort:  intstr.FromInt(15692),
+						TargetPort:  intstr.FromInt32(15692),
 						Protocol:    corev1.ProtocolTCP,
 						AppProtocol: ptr.To("prometheus.io/metrics"),
 					},
 					corev1.ServicePort{
 						Protocol:    corev1.ProtocolUDP,
 						Port:        12345,
-						TargetPort:  intstr.FromInt(12345),
+						TargetPort:  intstr.FromInt32(12345),
 						Name:        "my-new-port",
 						AppProtocol: ptr.To("my.company.com/protocol"),
 					},

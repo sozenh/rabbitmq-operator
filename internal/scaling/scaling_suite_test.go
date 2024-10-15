@@ -60,7 +60,7 @@ func generatePVCTemplate(size k8sresource.Quantity) corev1.PersistentVolumeClaim
 }
 
 func generatePVC(rmq rabbitmqv1beta1.RabbitmqCluster, index int, size k8sresource.Quantity) corev1.PersistentVolumeClaim {
-	name := constant.GetPVCName(rmq.Name, index)
+	name := rmq.PVCName(constant.ResourceStatefulsetSuffix, index, constant.PVCName)
 	return corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,

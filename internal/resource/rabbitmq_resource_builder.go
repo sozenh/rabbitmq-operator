@@ -10,14 +10,16 @@
 package resource
 
 import (
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
 )
 
 type RabbitmqResourceBuilder struct {
-	Instance *rabbitmqv1beta1.RabbitmqCluster
 	Scheme   *runtime.Scheme
+	Replicas int
+	Instance *rabbitmqv1beta1.RabbitmqCluster
 }
 
 type ResourceBuilder interface {
@@ -38,7 +40,9 @@ func (builder *RabbitmqResourceBuilder) ResourceBuilders() []ResourceBuilder {
 		builder.ServiceAccount(),
 		builder.Role(),
 		builder.RoleBinding(),
-		builder.StatefulSet(),
+	}
+	for i := 0; i < builder.Replicas; i++ {
+		builders = append(builders, builder.StatefulSet(i))
 	}
 	if builder.Instance.VaultDefaultUserSecretEnabled() || builder.Instance.ExternalSecretEnabled() {
 		// do not create default-user K8s Secret

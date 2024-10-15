@@ -1,16 +1,11 @@
 package constant
 
-import (
-	"strconv"
-	"strings"
-)
-
 const (
 	PVCName               = "persistence"
 	VolumeNamePersistence = "persistence"
 	VolumeNamePodInfo     = "pod-info"
 
-	VolumeNameRabbitmqTLS          = "rabbitmq-tls"
+	VolumeNameRabbitmqTls          = "rabbitmq-tls"
 	VolumeNameRabbitmqConfd        = "rabbitmq-confd"
 	VolumeNameRabbitmqServerConf   = "server-conf"
 	VolumeNameRabbitmqPlugins      = "rabbitmq-plugins"
@@ -56,7 +51,3 @@ const (
 	PluginNameStreamManagement         = "rabbitmq_stream_management"
 	PluginNameStreamMultiDCReplication = "rabbitmq_multi_dc_replication"
 )
-
-func GetPVCName(name string, replica int) string {
-	return strings.Join([]string{PVCName, name, ResourceStatefulsetSuffix, strconv.Itoa(replica)}, "-")
-}
