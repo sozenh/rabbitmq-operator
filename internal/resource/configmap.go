@@ -32,6 +32,7 @@ const (
 	disableNonTLSListeners = "none"
 
 	defaultRabbitmqConf = `
+log.file = /var/log/rabbitmq/rabbitmq.log
 queue_master_locator = min-masters
 disk_free_limit.absolute = 2GB
 cluster_partition_handling = pause_minority

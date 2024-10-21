@@ -44,6 +44,10 @@ const (
 	dirRabbitmqLib  = "/var/lib/rabbitmq/"
 	dirRabbitmqData = dirRabbitmqLib + "mnesia/"
 
+	dirRabbitmqLog      = "/var/log/rabbitmq/"
+	fileNameRabbitmqLog = "rabbitmq.log"
+	filePathRabbitmqLog = dirRabbitmqLog + fileNameRabbitmqLog
+
 	dirRabbitmqTls  = "/etc/rabbitmq-tls/"
 	fileNameCaCert  = "ca.crt"
 	filePathCaCert  = dirRabbitmqTls + fileNameCaCert
@@ -304,6 +308,12 @@ func (builder *StatefulSetBuilder) volumes(currVolumes []corev1.Volume) []corev1
 	volumes := []corev1.Volume{
 		builder.volumeConfd(),
 		{
+			Name: constant.VolumeNameRabbitmqLog,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
 			Name: constant.VolumeNameRabbitmqPlugins,
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
@@ -499,6 +509,7 @@ func (builder *StatefulSetBuilder) containerRabbitmq() corev1.Container {
 
 	container.VolumeMounts = []corev1.VolumeMount{
 		{Name: constant.VolumeNamePodInfo, MountPath: dirPodInfo},
+		{Name: constant.VolumeNameRabbitmqLog, MountPath: dirRabbitmqLog},
 		{Name: constant.VolumeNameRabbitmqPlugins, MountPath: dirRabbitmqPlugins},
 		{Name: constant.VolumeNameRabbitmqErlangCookie, MountPath: dirRabbitmqLib},
 		{Name: constant.VolumeNamePersistence, MountPath: dirRabbitmqData},

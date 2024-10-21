@@ -5,6 +5,7 @@ const (
 	VolumeNamePersistence = "persistence"
 	VolumeNamePodInfo     = "pod-info"
 
+	VolumeNameRabbitmqLog          = "rabbitmq-log"
 	VolumeNameRabbitmqTls          = "rabbitmq-tls"
 	VolumeNameRabbitmqConfd        = "rabbitmq-confd"
 	VolumeNameRabbitmqServerConf   = "server-conf"
