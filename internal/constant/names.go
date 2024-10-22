@@ -32,6 +32,7 @@ const (
 	ResourceServiceAccountSuffix = "server"
 	ResourceRoleSuffix           = "peer-discovery"
 
+	ResourceDefaultUserSuffix     = "default-user"
 	ResourceErlangCookieSuffix    = "erlang-cookie"
 	ResourceServerConfigMapSuffix = "server-conf"
 	ResourcePluginConfigMapSuffix = "plugins-conf"

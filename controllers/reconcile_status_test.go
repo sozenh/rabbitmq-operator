@@ -1,11 +1,12 @@
 package controllers_test
 
 import (
-	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
-	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+
+	rabbitmqv1beta1 "github.com/rabbitmq/cluster-operator/v2/api/v1beta1"
+	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -55,7 +56,7 @@ var _ = Describe("Reconcile status", func() {
 			return nil
 		}, 5).ShouldNot(BeNil())
 
-		Expect(secretRef.Name).To(Equal(rmq.ChildResourceName(resource.DefaultUserSecretName)))
+		Expect(secretRef.Name).To(Equal(rmq.ChildResourceName(constant.ResourceDefaultUserSuffix)))
 		Expect(secretRef.Namespace).To(Equal(rmq.Namespace))
 		Expect(secretRef.Keys).To(HaveKeyWithValue("username", "username"))
 		Expect(secretRef.Keys).To(HaveKeyWithValue("password", "password"))
@@ -92,7 +93,7 @@ var _ = Describe("Reconcile status", func() {
 			return nil
 		}, 5).ShouldNot(BeNil())
 
-		Expect(binding.Name).To(Equal(rmq.ChildResourceName(resource.DefaultUserSecretName)))
+		Expect(binding.Name).To(Equal(rmq.ChildResourceName(constant.ResourceDefaultUserSuffix)))
 	})
 
 	When("secret backend vault is enabled", func() {

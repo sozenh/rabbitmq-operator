@@ -18,7 +18,6 @@ import (
 	"github.com/rabbitmq/cluster-operator/v2/controllers/result"
 	"github.com/rabbitmq/cluster-operator/v2/internal/constant"
 	"github.com/rabbitmq/cluster-operator/v2/internal/metadata"
-	"github.com/rabbitmq/cluster-operator/v2/internal/resource"
 	"github.com/rabbitmq/cluster-operator/v2/internal/status"
 )
 
@@ -47,7 +46,7 @@ func (r *RabbitmqClusterReconciler) reconcileStatus(
 	if !rmq.VaultDefaultUserSecretEnabled() {
 		rmq.Status.DefaultUser.SecretReference =
 			&rabbitmqv1beta1.RabbitmqClusterSecretReference{
-				Name:      rmq.ChildResourceName(resource.DefaultUserSecretName),
+				Name:      rmq.ChildResourceName(constant.ResourceDefaultUserSuffix),
 				Namespace: rmq.Namespace,
 				Keys:      map[string]string{"username": "username", "password": "password"},
 			}
@@ -55,7 +54,7 @@ func (r *RabbitmqClusterReconciler) reconcileStatus(
 		if rmq.ExternalSecretEnabled() {
 			rmq.Status.Binding = &corev1.LocalObjectReference{Name: rmq.Spec.SecretBackend.ExternalSecret.Name}
 		} else {
-			rmq.Status.Binding = &corev1.LocalObjectReference{Name: rmq.ChildResourceName(resource.DefaultUserSecretName)}
+			rmq.Status.Binding = &corev1.LocalObjectReference{Name: rmq.ChildResourceName(constant.ResourceDefaultUserSuffix)}
 		}
 	}
 

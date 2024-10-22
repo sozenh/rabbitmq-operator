@@ -289,7 +289,7 @@ func (builder *StatefulSetBuilder) volumeConfd() corev1.Volume {
 		if builder.Instance.ExternalSecretEnabled() {
 			secretName = builder.Instance.Spec.SecretBackend.ExternalSecret.Name
 		} else {
-			secretName = builder.Instance.ChildResourceName(DefaultUserSecretName)
+			secretName = builder.Instance.ChildResourceName(constant.ResourceDefaultUserSuffix)
 		}
 
 		userSecretProject := corev1.VolumeProjection{

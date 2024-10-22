@@ -28,10 +28,9 @@ import (
 )
 
 const (
-	DefaultUserSecretName = "default-user"
-	bindingProvider       = "rabbitmq"
-	bindingType           = "rabbitmq"
-	usernamePrefix        = "default_user_"
+	bindingProvider = "rabbitmq"
+	bindingType     = "rabbitmq"
+	usernamePrefix  = "default_user_"
 )
 
 type DefaultUserSecretBuilder struct {
@@ -62,7 +61,7 @@ func (builder *DefaultUserSecretBuilder) Build() (client.Object, error) {
 	// See: https://k8s-service-bindings.github.io/spec/#provisioned-service
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        builder.Instance.ChildResourceName(DefaultUserSecretName),
+			Name:        builder.Instance.ChildResourceName(constant.ResourceDefaultUserSuffix),
 			Namespace:   builder.Instance.Namespace,
 			Labels:      metadata.GetLabels(builder.Instance.Name, builder.Instance.Labels),
 			Annotations: metadata.ReconcileAndFilterAnnotations(nil, builder.Instance.Annotations),
