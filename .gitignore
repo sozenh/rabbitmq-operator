@@ -1,6 +1,6 @@
 # locally built binary
 cluster-operator
-vendor/
+
 cover.out
 **/*.yaml-e
 .idea/

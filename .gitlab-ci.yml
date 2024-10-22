@@ -1,0 +1,17 @@
+image: registry.woqutech.com/woqutech/runner:v2.0.0
+
+variables:
+  EVENT_SERVER: "http://basebuild-listener.qfusioncicd.woqutech.com:30318"
+  TEKTON_SERVER: "http://10.10.40.222:30432"
+#  LOG_LEVEL: 20 # info
+
+stages:
+  - build
+
+job_build:
+  stage: build
+  script:
+    - echo "do project build"
+    - python3 /scripts/run.py cloud-event $CI_PROJECT_URL $CI_PROJECT_NAME $CI_COMMIT_SHA
+  tags:
+    - tektoncd
